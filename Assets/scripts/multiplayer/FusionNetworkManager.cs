@@ -89,6 +89,11 @@ namespace Networking
                 }
             }
 
+            if (currentPlayers == 2)
+            {
+                Debug.Log("[DEBUG] Two players connected — ready to start match (DEBUG LOG)");
+            }
+
             // Choose spawn position depending on team
             Vector3 spawnPos = (assignedTeam == 0) ? new Vector3(-2f, 0f, 0f) : new Vector3(2f, 0f, 0f);
 

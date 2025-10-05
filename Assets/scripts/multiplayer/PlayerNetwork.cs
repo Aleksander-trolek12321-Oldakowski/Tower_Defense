@@ -21,8 +21,8 @@ namespace Networking
         {
             // React to changes in the team (networked property).
             // Only the local player should update their own UI, so check input authority.
-            if (Object.HasInputAuthority)
-                UpdateLocalUI();
+            //if (Object.HasInputAuthority)
+                //UpdateLocalUI();
         }
 
         void UpdateLocalUI()

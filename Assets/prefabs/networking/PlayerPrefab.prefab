@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 126653480158670332}
+  - component: {fileID: 9163982303557147836}
   m_Layer: 0
   m_Name: AttackerUI
   m_TagString: Untagged
@@ -31,6 +32,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 764256429852040299}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &9163982303557147836
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6908416773963684265}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0076c04b3c609649ad1965c88ead545, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visuals: {fileID: 6908416773963684265}
+  manualOwnerTeam: -1
+  restrictToOwnerTeam: 1
 --- !u!1 &7823447744010460591
 GameObject:
   m_ObjectHideFlags: 0
@@ -40,6 +56,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6551010369630996692}
+  - component: {fileID: 4340548420278729300}
   m_Layer: 0
   m_Name: DefenderUI
   m_TagString: Untagged
@@ -62,6 +79,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 764256429852040299}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4340548420278729300
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7823447744010460591}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0076c04b3c609649ad1965c88ead545, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visuals: {fileID: 7823447744010460591}
+  manualOwnerTeam: -1
+  restrictToOwnerTeam: 1
 --- !u!1 &8432711220326309318
 GameObject:
   m_ObjectHideFlags: 0
@@ -129,5 +161,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _Team: -1
+  localCameraPrefab: {fileID: 2793637421958265430, guid: 319efc784f53f1b4bafea429502b38d9, type: 3}
   defenderUI: {fileID: 7823447744010460591}
   attackerUI: {fileID: 6908416773963684265}
+  waitingUI: {fileID: 0}

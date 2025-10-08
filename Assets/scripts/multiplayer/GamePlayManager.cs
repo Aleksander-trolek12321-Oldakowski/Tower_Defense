@@ -2,80 +2,86 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
-
 namespace Networking
 {
     public class GamePlayManager : NetworkBehaviour
     {
         public static GamePlayManager Instance;
 
+        [Header("Networked prefabs (register these in NetworkProjectConfig)")]
+        public NetworkObject[] unitPrefabs;
+        public NetworkObject[] towerPrefabs;
 
-        [Header("Prefabs (NetworkObject prefabs registered in Runner)")]
-        public NetworkObject[] unitPrefabs; // index corresponds to unitIndex
-        public NetworkObject[] towerPrefabs; // towerIndex
+        [Header("Build spots (scene transforms)")]
+        public Transform[] towerSpots;
 
-
-        [Header("Build spots (only server enforces occupancy)")]
-        public Transform[] towerSpots; // assign in the inspector
         private Dictionary<int, bool> spotOccupied = new Dictionary<int, bool>();
 
+        [Networked] public bool MatchStarted { get; set; } = false;
 
         private void Awake()
         {
             Instance = this;
         }
 
-
         public override void Spawned()
         {
             base.Spawned();
-            // initialize occupied
+            Instance = this;
+
+            // init spots occupancy
+            spotOccupied.Clear();
             for (int i = 0; i < towerSpots.Length; i++) spotOccupied[i] = false;
         }
 
+        // Called by host to start the match
+        public void StartMatchOnServer()
+        {
+            if (!Runner.IsServer) return;
+            MatchStarted = true;
+            Debug.Log("[GamePlayManager] MatchStarted = true (server)");
+        }
 
-        // Attacker -> spawn units
+        // Host spawns unit (units are networked prefabs)
         public void SpawnUnitByIndex(int idx, Vector2 pos, int team, PlayerRef requester)
         {
-            // validate index
+            if (!Runner.IsServer) return;
             if (idx < 0 || idx >= unitPrefabs.Length) return;
 
-
-            // Host spawns and assigns team (networked prop in EnemyNetwork)
             var no = Runner.Spawn(unitPrefabs[idx], (Vector3)pos, Quaternion.identity, PlayerRef.None);
             var en = no.GetComponent<EnemyNetwork>();
             if (en != null) en.Team = team;
 
+            // update visibility immediately if component present
+            var tv = no.GetComponent<TeamVisibility>();
+            if (tv != null) tv.UpdateVisibility();
 
             Debug.Log($"Spawned unit idx={idx} at {pos} for team={team} requested by {requester}");
         }
 
-
-        // Defender -> place tower at a specific spot
+        // Host places tower at a spot
         public void PlaceTowerAtSpot(int towerIndex, int spotId, int team, PlayerRef requester)
         {
+            if (!Runner.IsServer) return;
             if (towerIndex < 0 || towerIndex >= towerPrefabs.Length) return;
             if (!spotOccupied.ContainsKey(spotId)) return;
-            if (spotOccupied[spotId]) return; // occupied
+            if (spotOccupied[spotId]) return;
 
-
-            // optional validation of distance/permissions
-            // Spawn tower
             var pos = towerSpots[spotId].position;
             var no = Runner.Spawn(towerPrefabs[towerIndex], pos, Quaternion.identity, PlayerRef.None);
             var tw = no.GetComponent<TowerNetwork>();
             if (tw != null) tw.OwnerTeam = team;
 
+            var tv = no.GetComponent<TeamVisibility>();
+            if (tv != null) tv.UpdateVisibility();
 
             spotOccupied[spotId] = true;
             Debug.Log($"Placed tower idx={towerIndex} at spot {spotId} for team={team} (by {requester})");
         }
 
-
-        // cleanup when a player leaves
         public void OnPlayerLeft(PlayerRef player)
         {
-            // add logic here e.g. resetting spots if a tower belonged to a player that no longer exists
+            // optional cleanup
         }
     }
 }

@@ -8,6 +8,7 @@ namespace Networking
     {
         // 0 = Defender, 1 = Attacker
         [Networked] public int Team { get; set; } = -1;
+        [Networked] public int Money { get; set; } = 100;
 
         // Local instance helper
         public static PlayerNetwork Local { get; private set; }
@@ -98,6 +99,15 @@ namespace Networking
                 return;
 
             GamePlayManager.Instance.PlaceTowerAtSpot(towerIndex, spotId, pn.Team, srcPlayerRef);
+        }
+
+        // helper called by InteractiveSpot to open build menu on local defender UI
+        public void OpenBuildMenu(int spotId)
+        {
+            if (!Object.HasInputAuthority) return; // only local
+            if (defenderUI == null) return;
+            var bm = defenderUI.GetComponent<BuildMenuManager>();
+            if (bm != null) bm.Open(spotId);
         }
     }
 }

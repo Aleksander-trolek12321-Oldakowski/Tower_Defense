@@ -17,6 +17,8 @@ namespace Networking
 
         private NetworkRunner runner;
 
+        private Dictionary<PlayerRef, int> playerTeams = new Dictionary<PlayerRef, int>();
+
         private void Awake()
         {
             // Limit application frame rate for mobile stability
@@ -55,65 +57,104 @@ namespace Networking
         // -------------------------
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
-            Debug.Log($"OnPlayerJoined: {player}");
+            Debug.Log($"[DEBUG] OnPlayerJoined: {player}");
 
-            // Only the server/host should perform spawn and assignment logic
+            // Only the host/server should assign teams and spawn players
             if (!runner.IsServer) return;
 
-            // Count active players from ActivePlayers collection
-            int currentPlayers = new List<PlayerRef>(runner.ActivePlayers).Count;
-
-            int assignedTeam = 0;
-            if (currentPlayers == 1)
+            // If we already assigned this player before (reconnect), reuse assignment
+            int assignedTeam;
+            if (playerTeams.TryGetValue(player, out assignedTeam))
             {
-                // If this is the first player (host), assign randomly to team 0 or 1
-                assignedTeam = UnityEngine.Random.value < 0.5f ? 0 : 1;
+                Debug.Log($"[DEBUG] Player {player} already assigned to team {assignedTeam} (reconnect or cached).");
             }
             else
             {
-                // For the second player, try to find the existing player's team and assign the opposite
-                foreach (var kv in runner.ActivePlayers)
+                // Determine team:
+                if (playerTeams.Count == 0)
                 {
-                    if (kv != player)
+                    // first player -> random team 0 or 1
+                    assignedTeam = UnityEngine.Random.Range(0, 2);
+                }
+                else if (playerTeams.Count == 1)
+                {
+                    // second player -> assign opposite of the existing player
+                    int otherTeam = -1;
+                    foreach (var kv in playerTeams)
                     {
-                        var obj = runner.GetPlayerObject(kv);
-                        if (obj != null)
-                        {
-                            var pn = obj.GetComponent<PlayerNetwork>();
-                            if (pn != null)
-                            {
-                                assignedTeam = (pn.Team == 0) ? 1 : 0;
-                            }
-                        }
+                        otherTeam = kv.Value;
+                        break;
                     }
+                    assignedTeam = 1 - otherTeam;
+                }
+                else
+                {
+                    // Shouldn't happen in 2-player setup, but fallback to random
+                    assignedTeam = UnityEngine.Random.Range(0, 2);
+                }
+
+                // store assignment
+                playerTeams[player] = assignedTeam;
+                Debug.Log($"[DEBUG] Assigned PlayerRef {player} -> team {assignedTeam} (stored in playerTeams).");
+            }
+
+            // Avoid double-spawn: if player object exists, just update its Team property
+            var existingObject = runner.GetPlayerObject(player);
+            if (existingObject != null)
+            {
+                var pn = existingObject.GetComponent<PlayerNetwork>();
+                if (pn != null)
+                {
+                    pn.Team = assignedTeam;
+                    Debug.Log($"[DEBUG] Updated existing player object for {player} team -> {assignedTeam}");
                 }
             }
-
-            if (currentPlayers == 2)
+            else
             {
-                Debug.Log("[DEBUG] Two players connected — ready to start match (DEBUG LOG)");
+                // spawn player avatar for this player and set its Team
+                Vector3 spawnPos = (assignedTeam == 0) ? new Vector3(-2f, 0f, 0f) : new Vector3(2f, 0f, 0f);
+                var no = runner.Spawn(playerPrefab, spawnPos, Quaternion.identity, player);
+                var playerNet = no.GetComponent<PlayerNetwork>();
+                if (playerNet != null)
+                {
+                    playerNet.Team = assignedTeam;
+                }
+                Debug.Log($"[DEBUG] Spawned player object for {player} with team {assignedTeam}");
             }
 
-            // Choose spawn position depending on team
-            Vector3 spawnPos = (assignedTeam == 0) ? new Vector3(-2f, 0f, 0f) : new Vector3(2f, 0f, 0f);
-
-            // Spawn the player object with input authority assigned to the joining player
-            var no = runner.Spawn(playerPrefab, spawnPos, Quaternion.identity, player);
-            var playerNet = no.GetComponent<PlayerNetwork>();
-            if (playerNet != null)
+            // Debug: print current mapping (helpful during tests)
+            Debug.Log("[DEBUG] Current playerTeam mapping:");
+            foreach (var kv in playerTeams)
             {
-                // Server/host sets the networked Team property
-                playerNet.Team = assignedTeam;
+                Debug.Log($"[DEBUG]  PlayerRef {kv.Key} => Team {kv.Value}");
             }
 
-            Debug.Log($"Spawned player object for {player} with team {assignedTeam}");
+            // If we reached the max players and want to start the match, we can call:
+            int currentPlayers = new List<PlayerRef>(runner.ActivePlayers).Count;
+            if (currentPlayers >= maxPlayers)
+            {
+                if (GamePlayManager.Instance != null)
+                {
+                    GamePlayManager.Instance.StartMatchOnServer(); // optional: start match
+                }
+            }
         }
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {
-            Debug.Log($"OnPlayerLeft: {player}");
+            Debug.Log($"[DEBUG] OnPlayerLeft: {player}");
 
             if (!runner.IsServer) return;
+
+            // remove mapping so next join gets fresh assignment (or keep mapping if you want reconnection preserving)
+            if (playerTeams.ContainsKey(player))
+            {
+                playerTeams.Remove(player);
+                Debug.Log($"[DEBUG] Removed PlayerRef {player} from playerTeams.");
+            }
+
+            // Optional: if you want to keep teams stable across short reconnects, do NOT remove mapping here.
+
             GamePlayManager.Instance?.OnPlayerLeft(player);
         }
 

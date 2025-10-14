@@ -1,63 +1,50 @@
 using UnityEngine;
-using Networking;
+using UI;
 
 namespace Controller
 {
     [RequireComponent(typeof(Collider2D))]
-    public class InteractiveSpot : MonoBehaviour
+    public class InteractiveSpot : MonoBehaviour, IInteractable
     {
-        public enum SpotType { BuildSpot, SpawnPoint }
-        public SpotType spotType = SpotType.BuildSpot;
-
-        // for build spots: id for tower spot indexing (matches GamePlayManager.towerSpots index)
         public int spotId = 0;
+        public Color gizmoColor = Color.cyan;
 
-        // optional UI hint or debug name
-        public string debugName = "Spot";
-
-        // called by CameraController when player taps/clicks
+        // Called by CameraController when the player clicks/taps the spot
         public void OnInteract()
         {
-            Debug.Log($"[InteractiveSpot] OnInteract called on {debugName} (type={spotType})");
+            Debug.Log($"[InteractiveSpot] OnInteract called for spot {spotId} (obj:{gameObject.name})");
 
-            // ensure we have local player reference
-            var local = PlayerNetwork.Local;
+            var local = Networking.PlayerNetwork.Local;
             if (local == null)
             {
-                Debug.Log("[InteractiveSpot] No local PlayerNetwork (Local is null).");
+                Debug.LogWarning("[InteractiveSpot] No local player found. Ignoring.");
                 return;
             }
 
-            int myTeam = local.Team;
-            if (spotType == SpotType.BuildSpot)
+            if (local.Team != 0)
             {
-                // only defenders (team 0) can interact here
-                if (myTeam != 0)
-                {
-                    Debug.Log("[InteractiveSpot] You are not defender — cannot build here.");
-                    // optionally show UI message
-                    return;
-                }
-
-                // Open build UI or directly request place tower using default towerIndex (example 0)
-                // Example: call PlayerNetwork.Local.RPC_RequestPlaceTower(towerIndex, spotId);
-                // Here we call RPC (local is InputAuthority) to request host to spawn tower
-                local.RPC_RequestPlaceTower(0, spotId); // towerIndex 0 as example — replace with real chooser
-                Debug.Log($"[InteractiveSpot] Sent RPC_RequestPlaceTower spot={spotId}");
+                Debug.Log("[InteractiveSpot] Local is not defender - cannot open build menu.");
+                return;
             }
-            else // SpawnPoint
-            {
-                // only attackers (team 1) can interact (if you want spawn points only for attacker)
-                if (myTeam != 1)
-                {
-                    Debug.Log("[InteractiveSpot] You are not attacker — cannot spawn units here.");
-                    return;
-                }
 
-                // spawn unit — here we pick unitIndex 0 and spawn position at this spot
-                Vector2 spawnPos = transform.position;
-                local.RPC_RequestSpawnUnit(0, spawnPos);
-                Debug.Log("[InteractiveSpot] Sent RPC_RequestSpawnUnit at " + spawnPos);
+            local.OpenBuildMenu(spotId);
+        }
+
+        // For physics-based input: respond to pointer clicks if used that way
+        void OnMouseDown()
+        {
+            // Note: OnMouseDown works in Editor if collider + camera are set appropriately.
+            OnInteract();
+        }
+
+        void OnDrawGizmosSelected()
+        {
+            Gizmos.color = gizmoColor;
+            var col = GetComponent<Collider2D>();
+            if (col != null)
+            {
+                var b = col.bounds;
+                Gizmos.DrawWireCube(b.center, b.size);
             }
         }
     }

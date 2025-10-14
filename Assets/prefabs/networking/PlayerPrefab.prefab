@@ -66,11 +66,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c8f4c282270394144a22db5821f4c750, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _Team: -1
-  localCameraPrefab: {fileID: 2793637421958265430, guid: 319efc784f53f1b4bafea429502b38d9, type: 3}
-  defenderUI: {fileID: 5869163065878082176, guid: ad7c748f9396f2b459d54ea6b6923f92, type: 3}
+  attackerUIPrefab: {fileID: 93628314050592127, guid: 3899b64b93cf45f4788c40ebc754dae3, type: 3}
+  defenderUIPrefab: {fileID: 93628314050592127, guid: fbd7bdc955dc90d4ca8287d7e3f00cd8, type: 3}
+  waitingUIPrefab: {fileID: 2780509444994113149, guid: 5b3f29fa9ad29394bb10e860f32d771d, type: 3}
   attackerUI: {fileID: 7932648660228449171, guid: cf40a98c1a6c3a54cbdd22ebefd7bf6b, type: 3}
-  waitingUI: {fileID: 0}
+  defenderUI: {fileID: 5869163065878082176, guid: ad7c748f9396f2b459d54ea6b6923f92, type: 3}
+  waitingUI: {fileID: 2780509444994113149, guid: 5b3f29fa9ad29394bb10e860f32d771d, type: 3}
+  localCameraPrefab: {fileID: 2793637421958265430, guid: 319efc784f53f1b4bafea429502b38d9, type: 3}
+  forceAttachButtonHandlers: 0
+  _Team: -1
+  _Money: 100
 --- !u!114 &3314130814540384273
 MonoBehaviour:
   m_ObjectHideFlags: 0

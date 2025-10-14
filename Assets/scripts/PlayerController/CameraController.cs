@@ -1,13 +1,13 @@
 using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UI;
 
 namespace Controller
 {
     [RequireComponent(typeof(Camera))]
     public class CameraController : MonoBehaviour
     {
-        // Map click event (world position in XY)
         public static event Action<Vector2> OnMapClick;
 
         [Header("References")]
@@ -22,10 +22,8 @@ namespace Controller
         public float maxOrthographicSize = 12f;
         public float pinchZoomSpeed = 0.02f;
         public float mouseWheelZoomSpeed = 2f;
-        [Tooltip("Factor applied to orthographic size on double-click/tap (smaller => zoom in more)")]
         public float doubleClickZoomFactor = 0.5f;
         public float doubleClickTime = 0.35f; // max time between clicks for double-click/tap
-        [Tooltip("Max distance in pixels between clicks to count as double-click")]
         public float doubleClickMaxDistance = 50f;
 
         [Header("Interaction")]
@@ -90,8 +88,8 @@ namespace Controller
             {
                 Touch t = Input.GetTouch(0);
 
-                // detect UI under finger
-                pointerDownOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(t.fingerId);
+                // detect UI under finger (robust)
+                pointerDownOverUI = UIUtils.IsPointerOverUI();
 
                 if (t.phase == TouchPhase.Began)
                 {
@@ -124,7 +122,6 @@ namespace Controller
                 {
                     if (pointerDownOverUI)
                     {
-                        // UI handled it
                         pointerDownOverUI = false;
                         potentialInteractable = null;
                         isPanning = false;
@@ -149,7 +146,6 @@ namespace Controller
                         }
                         else if (isTap && potentialInteractable == null)
                         {
-                            // map click (convert to world)
                             float zDist = -cam.transform.position.z;
                             Vector3 worldPoint = cam.ScreenToWorldPoint(new Vector3(t.position.x, t.position.y, zDist));
                             OnMapClick?.Invoke(new Vector2(worldPoint.x, worldPoint.y));
@@ -170,9 +166,9 @@ namespace Controller
                 Touch t0 = Input.GetTouch(0);
                 Touch t1 = Input.GetTouch(1);
 
-                bool t0UI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(t0.fingerId);
-                bool t1UI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(t1.fingerId);
-                if (t0UI || t1UI) return;
+                bool t0UI = UIUtils.IsPointerOverUI();
+                // if any finger is over UI, skip pinch
+                if (t0UI) return;
 
                 Vector2 p0 = t0.position;
                 Vector2 p1 = t1.position;
@@ -186,7 +182,6 @@ namespace Controller
                 else
                 {
                     float delta = curDistance - lastPinchDistance;
-                    // scale zoom with camera size so feel is consistent at different zoom levels
                     cam.orthographicSize -= delta * pinchZoomSpeed * (cam.orthographicSize / 5f);
                     lastPinchDistance = curDistance;
                 }
@@ -202,7 +197,7 @@ namespace Controller
             float scroll = Input.mouseScrollDelta.y;
             if (Mathf.Abs(scroll) > 0.01f)
             {
-                if (EventSystem.current == null || !EventSystem.current.IsPointerOverGameObject())
+                if (!UIUtils.IsPointerOverUI())
                 {
                     cam.orthographicSize -= scroll * mouseWheelZoomSpeed * (cam.orthographicSize / 5f);
                 }
@@ -211,7 +206,7 @@ namespace Controller
             // mouse button down
             if (Input.GetMouseButtonDown(0))
             {
-                pointerDownOverUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+                pointerDownOverUI = UIUtils.IsPointerOverUI();
                 pointerDownScreenPos = Input.mousePosition;
                 panStartScreenPos = Input.mousePosition;
                 panStartCamPos = cam.transform.position;
@@ -272,7 +267,6 @@ namespace Controller
                 }
                 else if (isTap && potentialInteractable == null)
                 {
-                    // map click
                     float zDist = -cam.transform.position.z;
                     Vector3 worldPoint = cam.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, zDist));
                     OnMapClick?.Invoke(new Vector2(worldPoint.x, worldPoint.y));
@@ -288,7 +282,6 @@ namespace Controller
         // -----------------------
         void PanCameraByDrag(Vector2 currentScreenPos)
         {
-            // convert to world points at z = 0 plane (or whatever plane camera is pointed to)
             float zDist = -cam.transform.position.z;
             Vector3 worldStart = cam.ScreenToWorldPoint(new Vector3(panStartScreenPos.x, panStartScreenPos.y, zDist));
             Vector3 worldNow = cam.ScreenToWorldPoint(new Vector3(currentScreenPos.x, currentScreenPos.y, zDist));

@@ -27,9 +27,18 @@ namespace Networking
 
         async void Start()
         {
+            if (runnerPrefab == null)
+            {
+                Debug.LogError("[FusionNetworkManager] runnerPrefab is not assigned in inspector!");
+                return;
+            }
+
             // Instantiate and configure the NetworkRunner
             runner = Instantiate(runnerPrefab);
             runner.ProvideInput = true;
+
+            // Register callbacks BEFORE starting the runner (safer)
+            runner.AddCallbacks(this);
 
             // Create NetworkSceneInfo from current scene (StartGameArgs.Scene expects this type)
             var sceneRef = SceneRef.FromIndex(SceneManager.GetActiveScene().buildIndex);
@@ -43,24 +52,42 @@ namespace Networking
             {
                 GameMode = GameMode.AutoHostOrClient,
                 SessionName = "TD_Session",
-                Scene = sceneInfo, // Correct assignment: NetworkSceneInfo
+                Scene = sceneInfo,
                 SceneManager = runner.gameObject.AddComponent<NetworkSceneManagerDefault>(),
-                PlayerCount = maxPlayers   // Limit players to 2
+                PlayerCount = maxPlayers
             };
 
-            await runner.StartGame(args);
-            runner.AddCallbacks(this);
+            try
+            {
+                await runner.StartGame(args);
+                Debug.Log("[FusionNetworkManager] Runner started.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[FusionNetworkManager] StartGame failed: {ex.Message}\n{ex.StackTrace}");
+            }
         }
 
         // -------------------------
         // Core callbacks
         // -------------------------
-        public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
+        public void OnPlayerJoined(NetworkRunner runnerRef, PlayerRef player)
         {
             Debug.Log($"[DEBUG] OnPlayerJoined: {player}");
 
             // Only the host/server should assign teams and spawn players
-            if (!runner.IsServer) return;
+            if (!runnerRef.IsServer)
+            {
+                Debug.Log("[DEBUG] OnPlayerJoined: not server, skipping server-side assignment.");
+                return;
+            }
+
+            // ensure playerPrefab assigned
+            if (playerPrefab == null)
+            {
+                Debug.LogError("[FusionNetworkManager] playerPrefab is NULL in inspector! Cannot spawn player object.");
+                return;
+            }
 
             // If we already assigned this player before (reconnect), reuse assignment
             int assignedTeam;
@@ -89,7 +116,6 @@ namespace Networking
                 }
                 else
                 {
-                    // Shouldn't happen in 2-player setup, but fallback to random
                     assignedTeam = UnityEngine.Random.Range(0, 2);
                 }
 
@@ -98,28 +124,54 @@ namespace Networking
                 Debug.Log($"[DEBUG] Assigned PlayerRef {player} -> team {assignedTeam} (stored in playerTeams).");
             }
 
-            // Avoid double-spawn: if player object exists, just update its Team property
-            var existingObject = runner.GetPlayerObject(player);
+            // Try reuse existing player object if present
+            var existingObject = runnerRef.GetPlayerObject(player);
             if (existingObject != null)
             {
-                var pn = existingObject.GetComponent<PlayerNetwork>();
-                if (pn != null)
+                var pnExisting = existingObject.GetComponent<PlayerNetwork>();
+                if (pnExisting != null)
                 {
-                    pn.Team = assignedTeam;
+                    pnExisting.Team = assignedTeam;
                     Debug.Log($"[DEBUG] Updated existing player object for {player} team -> {assignedTeam}");
+                    pnExisting.Money = 100;
+                }
+                else
+                {
+                    Debug.LogWarning("[FusionNetworkManager] existing player object found but it lacks PlayerNetwork component.");
                 }
             }
             else
             {
                 // spawn player avatar for this player and set its Team
                 Vector3 spawnPos = (assignedTeam == 0) ? new Vector3(-2f, 0f, 0f) : new Vector3(2f, 0f, 0f);
-                var no = runner.Spawn(playerPrefab, spawnPos, Quaternion.identity, player);
-                var playerNet = no.GetComponent<PlayerNetwork>();
-                if (playerNet != null)
+                NetworkObject no = null;
+                try
                 {
-                    playerNet.Team = assignedTeam;
+                    no = runnerRef.Spawn(playerPrefab, spawnPos, Quaternion.identity, player);
                 }
-                Debug.Log($"[DEBUG] Spawned player object for {player} with team {assignedTeam}");
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[FusionNetworkManager] runner.Spawn threw exception: {ex.Message}\n{ex.StackTrace}");
+                }
+
+                if (no == null)
+                {
+                    Debug.LogError("[FusionNetworkManager] runner.Spawn returned null for player object - aborting spawn logic.");
+                }
+                else
+                {
+                    var playerNet = no.GetComponent<PlayerNetwork>();
+                    if (playerNet != null)
+                    {
+                        playerNet.Team = assignedTeam;
+                        playerNet.Money = 100;
+                        Debug.Log($"[DEBUG] Spawned player object for {player} with team {assignedTeam} and Money=100");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[FusionNetworkManager] spawned player object has no PlayerNetwork component.");
+                    }
+                }
             }
 
             // Debug: print current mapping (helpful during tests)
@@ -130,30 +182,41 @@ namespace Networking
             }
 
             // If we reached the max players and want to start the match, we can call:
-            int currentPlayers = new List<PlayerRef>(runner.ActivePlayers).Count;
+            int currentPlayers = 0;
+            try
+            {
+                currentPlayers = new List<PlayerRef>(runnerRef.ActivePlayers).Count;
+            }
+            catch
+            {
+                currentPlayers = playerTeams.Count;
+            }
+
             if (currentPlayers >= maxPlayers)
             {
                 if (GamePlayManager.Instance != null)
                 {
-                    GamePlayManager.Instance.StartMatchOnServer(); // optional: start match
+                    Debug.Log("[FusionNetworkManager] Enough players - calling GamePlayManager.StartMatchOnServer()");
+                    GamePlayManager.Instance.StartMatchOnServer();
+                }
+                else
+                {
+                    Debug.LogWarning("[FusionNetworkManager] Enough players but GamePlayManager.Instance is NULL - cannot start match.");
                 }
             }
         }
 
-        public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+        public void OnPlayerLeft(NetworkRunner runnerRef, PlayerRef player)
         {
             Debug.Log($"[DEBUG] OnPlayerLeft: {player}");
 
-            if (!runner.IsServer) return;
+            if (!runnerRef.IsServer) return;
 
-            // remove mapping so next join gets fresh assignment (or keep mapping if you want reconnection preserving)
             if (playerTeams.ContainsKey(player))
             {
                 playerTeams.Remove(player);
                 Debug.Log($"[DEBUG] Removed PlayerRef {player} from playerTeams.");
             }
-
-            // Optional: if you want to keep teams stable across short reconnects, do NOT remove mapping here.
 
             GamePlayManager.Instance?.OnPlayerLeft(player);
         }
@@ -164,47 +227,41 @@ namespace Networking
         public void OnInput(NetworkRunner runner, NetworkInput input) { /* input handling if needed */ }
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
 
-        public void OnShutdown(NetworkRunner runner, ShutdownReason reason)
+        public void OnShutdown(NetworkRunner runnerRef, ShutdownReason reason)
         {
             Debug.Log($"Runner shutdown: {reason}");
         }
 
-        public void OnConnectedToServer(NetworkRunner runner)
+        public void OnConnectedToServer(NetworkRunner runnerRef)
         {
             Debug.Log("Connected to server");
         }
 
-        // Disconnected callback with NetDisconnectReason
-        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
+        public void OnDisconnectedFromServer(NetworkRunner runnerRef, NetDisconnectReason reason)
         {
             Debug.Log($"Disconnected: {reason}");
         }
 
-        // Connect failed callback signature
-        public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
+        public void OnConnectFailed(NetworkRunner runnerRef, NetAddress remoteAddress, NetConnectFailedReason reason)
         {
             Debug.Log($"Connect failed to {remoteAddress}: {reason}");
         }
 
-        // Reliable data received
-        public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data) { }
+        public void OnReliableDataReceived(NetworkRunner runnerRef, PlayerRef player, ReliableKey key, ArraySegment<byte> data) { }
 
-        public void OnSceneLoadStart(NetworkRunner runner) { }
-        public void OnSceneLoadDone(NetworkRunner runner) { }
-        public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) { }
+        public void OnSceneLoadStart(NetworkRunner runnerRef) { }
+        public void OnSceneLoadDone(NetworkRunner runnerRef) { }
+        public void OnSessionListUpdated(NetworkRunner runnerRef, List<SessionInfo> sessionList) { }
 
-        // Optional: handle connect requests (accept/reject players if needed)
-        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
+        public void OnConnectRequest(NetworkRunner runnerRef, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
 
-        public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
+        public void OnUserSimulationMessage(NetworkRunner runnerRef, SimulationMessagePtr message) { }
 
-        // AOI (Area of Interest)
-        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
-        public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
+        public void OnObjectEnterAOI(NetworkRunner runnerRef, NetworkObject obj, PlayerRef player) { }
+        public void OnObjectExitAOI(NetworkRunner runnerRef, NetworkObject obj, PlayerRef player) { }
 
-        public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
-        public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
-        public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
-        public void OnDisconnectedFromServer(NetworkRunner runner) { }
+        public void OnCustomAuthenticationResponse(NetworkRunner runnerRef, Dictionary<string, object> data) { }
+        public void OnHostMigration(NetworkRunner runnerRef, HostMigrationToken hostMigrationToken) { }
+        public void OnReliableDataProgress(NetworkRunner runnerRef, PlayerRef player, ReliableKey key, float progress) { }
     }
 }

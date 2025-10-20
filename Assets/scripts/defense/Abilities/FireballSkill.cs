@@ -5,7 +5,7 @@ public class FireballSkill : SkillBase
 {
     [Header("Dane Fireballa")]
     public GameObject fireballPrefab; // legacy local prefab (fallback)
-    public NetworkObject fireballNetworkPrefab; // <-- przypisz NetworkObject prefab tutaj
+    public NetworkObject fireballNetworkPrefab;
     public float fireballFallSpeed = 10f;
     public float spawnHeight = 5f;
 
@@ -54,13 +54,11 @@ public class FireballSkill : SkillBase
 
     private void SpawnFireball(Vector2 position)
     {
-        // Preferujemy sieciowy spawn przez Fusion runner, jeśli dostępny i jeśli prefab przypisany
         var runner = FindObjectOfType<NetworkRunner>();
         Vector2 spawnPos = position + Vector2.up * spawnHeight;
 
         if (runner != null && fireballNetworkPrefab != null)
         {
-            // Server/host wykonuje runner.Spawn -> wszyscy klienci zobaczą obiekt
             NetworkObject no = null;
             try
             {
@@ -85,7 +83,6 @@ public class FireballSkill : SkillBase
             }
         }
 
-        // Fallback (lokalny): zachowanie jak wcześniej
         if (fireballPrefab == null)
         {
             Debug.LogWarning("Brak prefabu fireballa (zarówno network jak i lokalny)");

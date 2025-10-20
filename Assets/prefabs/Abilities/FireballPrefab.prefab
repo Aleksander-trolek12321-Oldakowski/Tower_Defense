@@ -11,6 +11,8 @@ GameObject:
   - component: {fileID: 4933292707328467570}
   - component: {fileID: 8170792860580533467}
   - component: {fileID: -7996838560417607771}
+  - component: {fileID: 6816694274751406758}
+  - component: {fileID: -4618017311142022383}
   m_Layer: 0
   m_Name: FireballPrefab
   m_TagString: Untagged
@@ -114,3 +116,40 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
+--- !u!114 &6816694274751406758
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4406122389954423891}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 51f9eab5d2d5fc740b5f5272cef0d023, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  skillName: "Nowa umiej\u0119tno\u015B\u0107"
+  skillIcon: {fileID: 0}
+  cooldown: 2
+  fireballPrefab: {fileID: 4406122389954423891}
+  fireballNetworkPrefab: {fileID: -4618017311142022383}
+  fireballFallSpeed: 10
+  spawnHeight: 5
+--- !u!114 &-4618017311142022383
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4406122389954423891}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  SortKey: 532240218
+  ObjectInterest: 1
+  Flags: 262145
+  NestedObjects: []
+  NetworkedBehaviours: []
+  ForceRemoteRenderTimeframe: 0

@@ -16,7 +16,6 @@ namespace Networking
         public GameObject defenderUIPrefab;
         public GameObject waitingUIPrefab;
 
-        // optional: legacy inspector fields (kept for compatibility)
         [Header("Optional legacy references (will be set at runtime)")]
         public GameObject attackerUI;
         public GameObject defenderUI;
@@ -44,7 +43,6 @@ namespace Networking
 
         void Awake()
         {
-            // make sure Local cleared on domain reloads
             if (!Application.isPlaying) Local = null;
         }
 
@@ -54,7 +52,6 @@ namespace Networking
 
             Debug.Log($"[PlayerNetwork] Spawned. IsLocal={Object.HasInputAuthority} Team={Team} Money={Money}");
 
-            // Non-local instances: disable embedded canvases (if any) so they don't block or show UI
             if (!Object.HasInputAuthority)
             {
                 var otherCanvases = GetComponentsInChildren<Canvas>(true);
@@ -66,7 +63,6 @@ namespace Networking
                 return;
             }
 
-            // LOCAL player: instantiate UI prefabs (only local)
             Transform uiParent = null;
             var uiRoot = GameObject.Find("UI_ROOT");
             if (uiRoot != null) uiParent = uiRoot.transform;
@@ -90,10 +86,8 @@ namespace Networking
                 waitingUI = waitingUIInstance;
             }
 
-            // ensure canvases are overlay by default to avoid camera/world issues
             AssignCanvasSettingsForLocalUI();
 
-            // instantiate local camera if provided
             if (localCameraPrefab != null && localCameraInstance == null)
             {
                 localCameraInstance = Instantiate(localCameraPrefab);
@@ -104,13 +98,10 @@ namespace Networking
                 }
             }
 
-            // Set local static
             Local = this;
 
-            // initial UI update (maybe Team not assigned yet; Update() will refresh when Team changes)
             UpdateLocalUI();
 
-            // debug runtime button attaching if requested
             if (forceAttachButtonHandlers)
                 AttachButtonHandlers();
         }
@@ -119,7 +110,6 @@ namespace Networking
         {
             base.Despawned(runner, hasState);
 
-            // destroy local UI instances if exist
             if (attackerUIInstance != null) Destroy(attackerUIInstance);
             if (defenderUIInstance != null) Destroy(defenderUIInstance);
             if (waitingUIInstance != null) Destroy(waitingUIInstance);
@@ -135,10 +125,8 @@ namespace Networking
 
         void Update()
         {
-            // Only local cares about showing UI
             if (!Object.HasInputAuthority) return;
 
-            // detect changes in Team or MatchStarted (networked values may change asynchronously)
             bool currentMatchStarted = (GamePlayManager.Instance != null) ? GamePlayManager.Instance.MatchStarted : false;
             if (lastObservedTeam != Team || lastObservedMatchStarted != currentMatchStarted)
             {
@@ -149,7 +137,6 @@ namespace Networking
             }
         }
 
-        // Ensures instantiated canvases use Overlay and are active
         void AssignCanvasSettingsForLocalUI()
         {
             List<Canvas> canvases = new List<Canvas>();
@@ -186,12 +173,10 @@ namespace Networking
 
             bool started = (GamePlayManager.Instance != null) ? GamePlayManager.Instance.MatchStarted : false;
 
-            // safety null checks
             if (attackerUI == null) Debug.LogWarning("[PlayerNetwork] attackerUI is null in UpdateLocalUI!");
             if (defenderUI == null) Debug.LogWarning("[PlayerNetwork] defenderUI is null in UpdateLocalUI!");
             if (waitingUI == null) Debug.LogWarning("[PlayerNetwork] waitingUI is null in UpdateLocalUI!");
 
-            // waiting UI visible until match starts
             if (waitingUI != null) waitingUI.SetActive(!started);
 
             if (!started)
@@ -202,7 +187,6 @@ namespace Networking
                 return;
             }
 
-            // match started -> show only UI for our team
             if (Team == 0)
             {
                 if (defenderUI != null) defenderUI.SetActive(true);
@@ -217,14 +201,12 @@ namespace Networking
             }
             else
             {
-                // no team assigned yet -> hide both
                 if (attackerUI != null) attackerUI.SetActive(false);
                 if (defenderUI != null) defenderUI.SetActive(false);
                 Debug.Log("[PlayerNetwork] Team unknown -> hiding both UIs until team assigned.");
             }
         }
 
-        // runtime attach handlers to unit buttons (optional helper)
         public void AttachButtonHandlers()
         {
             if (attackerUI != null)
@@ -247,7 +229,6 @@ namespace Networking
                 }
             }
 
-            // attach for build menu - optional
             var buildManager = defenderUI != null ? defenderUI.GetComponentInChildren<BuildMenuManager>(true) : null;
             if (buildManager != null)
             {
@@ -255,7 +236,6 @@ namespace Networking
             }
         }
 
-        // called from InteractiveSpot when player taps a build spot
         public void OpenBuildMenu(int spotId)
         {
             if (!Object.HasInputAuthority)
@@ -285,7 +265,6 @@ namespace Networking
             buildMenu.Open(spotId);
         }
 
-        // RPCs unchanged below (kept for server interaction)...
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
         public void RPC_RequestSpawnUnit(int unitIndex, Vector2 worldPos, RpcInfo info = default)
         {
@@ -323,7 +302,7 @@ namespace Networking
         public void RPC_RequestPlaceTower(int towerIndex, int spotId, RpcInfo info = default)
         {
             if (!Runner.IsServer) return;
-
+            // (maintain original behavior)
             var src = info.Source;
             var playerObj = Runner.GetPlayerObject(src);
             var pn = playerObj != null ? playerObj.GetComponent<PlayerNetwork>() : null;
@@ -347,5 +326,69 @@ namespace Networking
 
             Debug.Log($"[RPC_RequestPlaceTower] placed tower {towerIndex} at spot {spotId} for player {src}. Money left: {pn.Money}");
         }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
+        public void RPC_RequestUseAbility(int abilityId, Vector2 worldPos, RpcInfo info = default)
+        {
+            if (!Runner.IsServer)
+            {
+                Debug.Log("[RPC_RequestUseAbility] Not server - ignoring.");
+                return;
+            }
+
+            var src = info.Source;
+
+            // Najpierw spróbuj standardowego API
+            NetworkObject playerObj = null;
+            try
+            {
+                playerObj = Runner.GetPlayerObject(src);
+            }
+            catch
+            {
+                playerObj = null;
+            }
+
+            // Fallback: sprawdź mapę utrzymywaną przez FusionNetworkManager
+            if (playerObj == null)
+            {
+                if (Networking.FusionNetworkManager.PlayerObjects != null)
+                {
+                    Networking.FusionNetworkManager.PlayerObjects.TryGetValue(src, out playerObj);
+                }
+            }
+
+            var pn = playerObj != null ? playerObj.GetComponent<PlayerNetwork>() : null;
+            if (pn == null)
+            {
+                Debug.Log("[RPC_RequestUseAbility] sender has no PlayerNetwork");
+                return;
+            }
+
+            int team = pn.Team;
+            bool allowed = false;
+            if (abilityId >= 0 && abilityId <= 2 && team == 1) allowed = true;
+            if (abilityId >= 3 && abilityId <= 5 && team == 0) allowed = true;
+
+            if (!allowed)
+            {
+                Debug.Log($"[RPC_RequestUseAbility] denied: team {team} cannot use ability {abilityId}");
+                return;
+            }
+
+            if (GamePlayManager.Instance != null)
+            {
+                GamePlayManager.Instance.Server_HandleAbilityRequest(abilityId, worldPos, src);
+            }
+            else
+            {
+                Debug.LogWarning("[RPC_RequestUseAbility] GamePlayManager.Instance == null");
+            }
+        }
+
+
+        // Other callbacks and stubs unchanged...
+        public void OnInput(NetworkRunner runner, NetworkInput input) { }
+        public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     }
 }

@@ -17,6 +17,7 @@ namespace Networking
 
         private NetworkRunner runner;
 
+        public static Dictionary<PlayerRef, NetworkObject> PlayerObjects = new Dictionary<PlayerRef, NetworkObject>();
         private Dictionary<PlayerRef, int> playerTeams = new Dictionary<PlayerRef, int>();
 
         private void Awake()
@@ -134,6 +135,7 @@ namespace Networking
                     pnExisting.Team = assignedTeam;
                     Debug.Log($"[DEBUG] Updated existing player object for {player} team -> {assignedTeam}");
                     pnExisting.Money = 100;
+                    PlayerObjects[player] = existingObject;
                 }
                 else
                 {
@@ -165,6 +167,7 @@ namespace Networking
                     {
                         playerNet.Team = assignedTeam;
                         playerNet.Money = 100;
+                        PlayerObjects[player] = no;
                         Debug.Log($"[DEBUG] Spawned player object for {player} with team {assignedTeam} and Money=100");
                     }
                     else
@@ -216,6 +219,12 @@ namespace Networking
             {
                 playerTeams.Remove(player);
                 Debug.Log($"[DEBUG] Removed PlayerRef {player} from playerTeams.");
+            }
+
+            if (PlayerObjects.ContainsKey(player))
+            {
+                PlayerObjects.Remove(player);
+                Debug.Log($"[DEBUG] Removed PlayerRef {player} from PlayerObjects map.");
             }
 
             GamePlayManager.Instance?.OnPlayerLeft(player);

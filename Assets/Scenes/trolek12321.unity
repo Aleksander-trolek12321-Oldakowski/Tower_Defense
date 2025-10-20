@@ -438,10 +438,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1795748102}
-  - component: {fileID: 1795748101}
-  - component: {fileID: 1795748100}
-  - component: {fileID: 1795748099}
-  - component: {fileID: 1795748098}
+  - component: {fileID: 1795748103}
   m_Layer: 0
   m_Name: DebugTools
   m_TagString: Untagged
@@ -449,57 +446,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1795748098
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1795748097}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6095f47ccab64004ba68506554255a13, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &1795748099
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1795748097}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c0630ff9c21f3bc479e552a3795d55b0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &1795748100
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1795748097}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 456548fea3ea39541b2fa8436810f613, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &1795748101
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1795748097}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 707db29fe752fe64f8a0beb1ee590931, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  checkInterval: 0.5
-  maxReportedChangesPerTick: 20
-  logAllRenderersAtStart: 1
 --- !u!4 &1795748102
 Transform:
   m_ObjectHideFlags: 0
@@ -515,6 +461,23 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1795748103
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1795748097}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62409a293faa5734bb1d67248a8cd007, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fixedZ: -10
+  minOrtho: 3
+  maxOrtho: 12
+  enforceEveryFrame: 1
+  debugLogs: 0
 --- !u!1 &1836795619
 GameObject:
   m_ObjectHideFlags: 0
@@ -829,7 +792,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7714381718193051202, guid: 301b65a5c144a094893a44bf4d8c0355, type: 3}
       propertyPath: maxPlayers
-      value: 1
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 7714381718193051202, guid: 301b65a5c144a094893a44bf4d8c0355, type: 3}
       propertyPath: playerPrefab
@@ -860,10 +823,22 @@ PrefabInstance:
       propertyPath: SortKey
       value: 1711877778
       objectReference: {fileID: 0}
+    - target: {fileID: 1519040628948339158, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
+      propertyPath: NetworkedBehaviours.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1519040628948339158, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
+      propertyPath: 'NetworkedBehaviours.Array.data[1]'
+      value: 
+      objectReference: {fileID: 0}
     - target: {fileID: 2197161429156027542, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
       propertyPath: unitCosts.Array.size
       value: 4
       objectReference: {fileID: 0}
+    - target: {fileID: 2197161429156027542, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
+      propertyPath: fireballNetworkPrefab
+      value: 
+      objectReference: {fileID: -4618017311142022383, guid: c7e567bba31c4d141a1dd27c643161cd, type: 3}
     - target: {fileID: 2197161429156027542, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
       propertyPath: towerCosts.Array.size
       value: 3
@@ -872,6 +847,10 @@ PrefabInstance:
       propertyPath: towerSpots.Array.size
       value: 3
       objectReference: {fileID: 0}
+    - target: {fileID: 2197161429156027542, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
+      propertyPath: freezeAreaNetworkPrefab
+      value: 
+      objectReference: {fileID: 9178434770665289928, guid: 8e35b800264b46b4cb1c8a40bddda165, type: 3}
     - target: {fileID: 2197161429156027542, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
       propertyPath: 'unitCosts.Array.data[0]'
       value: 10

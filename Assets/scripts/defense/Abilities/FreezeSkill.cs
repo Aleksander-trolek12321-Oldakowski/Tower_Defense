@@ -1,12 +1,14 @@
+using Fusion;
 using UnityEngine;
 using System.Collections;
 
 public class FreezeSkill : SkillBase
 {
     [Header("Dane Freeze")]
-    public GameObject freezeAreaPrefab; 
-    public float freezeRadius = 3f;     
-    public float freezeDuration = 5f;   
+    public GameObject freezeAreaPrefab; // legacy local prefab (fallback)
+    public NetworkObject freezeAreaNetworkPrefab; // <-- przypisz NetworkObject prefab tutaj
+    public float freezeRadius = 3f;
+    public float freezeDuration = 5f;
 
     private bool isAiming = false;
     private Vector2 targetPosition;
@@ -48,13 +50,38 @@ public class FreezeSkill : SkillBase
     {
         Debug.Log($"Freeze w {position}");
 
-        GameObject area = null;
-        if (freezeAreaPrefab != null)
+        // spawn networked visual if possible
+        GameObject areaGO = null;
+        var runner = FindObjectOfType<NetworkRunner>();
+
+        if (runner != null && freezeAreaNetworkPrefab != null)
         {
-            area = Instantiate(freezeAreaPrefab, position, Quaternion.identity);
-            area.transform.localScale = Vector3.one * (freezeRadius * 2f); 
+            NetworkObject no = null;
+            try
+            {
+                no = runner.Spawn(freezeAreaNetworkPrefab, (Vector3)position, Quaternion.identity, PlayerRef.None);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[FreezeSkill] runner.Spawn failed: {ex.Message} - falling back to Instantiate");
+                no = null;
+            }
+
+            if (no != null)
+            {
+                areaGO = no.gameObject;
+                areaGO.transform.localScale = Vector3.one * (freezeRadius * 2f);
+            }
         }
 
+        // fallback local instantiation
+        if (areaGO == null && freezeAreaPrefab != null)
+        {
+            areaGO = Instantiate(freezeAreaPrefab, position, Quaternion.identity);
+            areaGO.transform.localScale = Vector3.one * (freezeRadius * 2f);
+        }
+
+        // Apply freeze effects (server-side authoritative expected)
         Collider2D[] hits = Physics2D.OverlapCircleAll(position, freezeRadius);
         foreach (var hit in hits)
         {
@@ -64,10 +91,10 @@ public class FreezeSkill : SkillBase
                 if (rb != null)
                 {
                     rb.velocity = Vector2.zero;
-                    rb.isKinematic = true; 
+                    rb.isKinematic = true;
                 }
 
-                // Jeśli mają własny AI movement wyłączyć UnitController:
+                // Jeśli mają własny AI movement — wyłączamy (proste)
                 MonoBehaviour ai = hit.GetComponent<MonoBehaviour>();
                 if (ai != null) ai.enabled = false;
             }
@@ -90,8 +117,8 @@ public class FreezeSkill : SkillBase
             }
         }
 
-        if (area != null)
-            Destroy(area);
+        if (areaGO != null)
+            Destroy(areaGO);
 
         Debug.Log("Freeze over");
     }

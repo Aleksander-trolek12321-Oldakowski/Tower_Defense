@@ -1,66 +1,394 @@
+using System;
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
+using UI;
+using Controller;
 
 namespace Networking
 {
     public class PlayerNetwork : NetworkBehaviour
     {
-        [Networked] public int Team { get; set; } = -1;
+        public static PlayerNetwork Local;
 
-        public GameObject defenderUI;   // visible only for defender
-        public GameObject attackerUI;   // visible only for attacker
+        [Header("Local UI Prefabs (assign prefabs, not scene objects)")]
+        public GameObject attackerUIPrefab;
+        public GameObject defenderUIPrefab;
+        public GameObject waitingUIPrefab;
+
+        [Header("Optional legacy references (will be set at runtime)")]
+        public GameObject attackerUI;
+        public GameObject defenderUI;
+        public GameObject waitingUI;
+
+        [Header("Camera")]
+        public GameObject localCameraPrefab;
+        private GameObject localCameraInstance;
+
+        [Header("Debug")]
+        public bool forceAttachButtonHandlers = false;
+
+        // runtime instances (only for local player)
+        private GameObject attackerUIInstance;
+        private GameObject defenderUIInstance;
+        private GameObject waitingUIInstance;
+
+        // Networked state
+        [Networked] public int Team { get; set; } = -1;
+        [Networked] public int Money { get; set; } = 0;
+
+        // local trackers to detect changes
+        private int lastObservedTeam = int.MinValue;
+        private bool lastObservedMatchStarted = false;
+
+        void Awake()
+        {
+            if (!Application.isPlaying) Local = null;
+        }
 
         public override void Spawned()
         {
             base.Spawned();
-            // Ensure the local player's UI matches the current Team value.
+
+            Debug.Log($"[PlayerNetwork] Spawned. IsLocal={Object.HasInputAuthority} Team={Team} Money={Money}");
+
+            if (!Object.HasInputAuthority)
+            {
+                var otherCanvases = GetComponentsInChildren<Canvas>(true);
+                foreach (var c in otherCanvases)
+                {
+                    c.gameObject.SetActive(false);
+                }
+                Debug.Log($"[PlayerNetwork] Disabled {otherCanvases.Length} embedded canvases on non-local player instance.");
+                return;
+            }
+
+            Transform uiParent = null;
+            var uiRoot = GameObject.Find("UI_ROOT");
+            if (uiRoot != null) uiParent = uiRoot.transform;
+
+            if (attackerUIPrefab != null)
+            {
+                attackerUIInstance = Instantiate(attackerUIPrefab, uiParent);
+                attackerUIInstance.name = attackerUIPrefab.name + "_local";
+                attackerUI = attackerUIInstance;
+            }
+            if (defenderUIPrefab != null)
+            {
+                defenderUIInstance = Instantiate(defenderUIPrefab, uiParent);
+                defenderUIInstance.name = defenderUIPrefab.name + "_local";
+                defenderUI = defenderUIInstance;
+            }
+            if (waitingUIPrefab != null)
+            {
+                waitingUIInstance = Instantiate(waitingUIPrefab, uiParent);
+                waitingUIInstance.name = waitingUIPrefab.name + "_local";
+                waitingUI = waitingUIInstance;
+            }
+
+            AssignCanvasSettingsForLocalUI();
+
+            if (localCameraPrefab != null && localCameraInstance == null)
+            {
+                localCameraInstance = Instantiate(localCameraPrefab);
+                var cam = localCameraInstance.GetComponent<Camera>();
+                if (cam != null)
+                {
+                    AssignCameraToCanvases(cam);
+                }
+            }
+
+            Local = this;
+
             UpdateLocalUI();
+
+            if (forceAttachButtonHandlers)
+                AttachButtonHandlers();
+        }
+
+        public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            base.Despawned(runner, hasState);
+
+            if (attackerUIInstance != null) Destroy(attackerUIInstance);
+            if (defenderUIInstance != null) Destroy(defenderUIInstance);
+            if (waitingUIInstance != null) Destroy(waitingUIInstance);
+
+            attackerUIInstance = defenderUIInstance = waitingUIInstance = null;
+            attackerUI = defenderUI = waitingUI = null;
+
+            if (localCameraInstance != null) Destroy(localCameraInstance);
+            if (Local == this) Local = null;
+
+            Debug.Log("[PlayerNetwork] Despawned.");
         }
 
         void Update()
         {
-            // React to changes in the team (networked property).
-            // Only the local player should update their own UI, so check input authority.
-            //if (Object.HasInputAuthority)
-                //UpdateLocalUI();
+            if (!Object.HasInputAuthority) return;
+
+            bool currentMatchStarted = (GamePlayManager.Instance != null) ? GamePlayManager.Instance.MatchStarted : false;
+            if (lastObservedTeam != Team || lastObservedMatchStarted != currentMatchStarted)
+            {
+                Debug.Log($"[PlayerNetwork] Team/MatchStarted changed. Team: {lastObservedTeam} -> {Team}, MatchStarted: {lastObservedMatchStarted} -> {currentMatchStarted}");
+                lastObservedTeam = Team;
+                lastObservedMatchStarted = currentMatchStarted;
+                UpdateLocalUI();
+            }
         }
 
-        void UpdateLocalUI()
+        void AssignCanvasSettingsForLocalUI()
         {
-            if (!Object.HasInputAuthority) return; // only the local player updates their UI
+            List<Canvas> canvases = new List<Canvas>();
+            if (attackerUIInstance != null) canvases.AddRange(attackerUIInstance.GetComponentsInChildren<Canvas>(true));
+            if (defenderUIInstance != null) canvases.AddRange(defenderUIInstance.GetComponentsInChildren<Canvas>(true));
+            if (waitingUIInstance != null) canvases.AddRange(waitingUIInstance.GetComponentsInChildren<Canvas>(true));
 
-            // Activate UI depending on Team value (0 = defender, 1 = attacker).
-            if (defenderUI) defenderUI.SetActive(Team == 0);
-            if (attackerUI) attackerUI.SetActive(Team == 1);
+            foreach (var c in canvases)
+            {
+                c.renderMode = RenderMode.ScreenSpaceOverlay;
+                c.gameObject.SetActive(true);
+            }
+
+            Debug.Log($"[PlayerNetwork] Assigned {canvases.Count} local canvases to Overlay and activated them.");
+        }
+
+        void AssignCameraToCanvases(Camera cam)
+        {
+            if (cam == null) return;
+            var canvases = GetComponentsInChildren<Canvas>(true);
+            foreach (var c in canvases)
+            {
+                if (c.renderMode == RenderMode.ScreenSpaceCamera || c.renderMode == RenderMode.WorldSpace)
+                {
+                    c.worldCamera = cam;
+                }
+            }
+            Debug.Log("[PlayerNetwork] Assigned local camera to prefab canvases (if any).");
+        }
+
+        public void UpdateLocalUI()
+        {
+            if (!Object.HasInputAuthority) return;
+
+            bool started = (GamePlayManager.Instance != null) ? GamePlayManager.Instance.MatchStarted : false;
+
+            if (attackerUI == null) Debug.LogWarning("[PlayerNetwork] attackerUI is null in UpdateLocalUI!");
+            if (defenderUI == null) Debug.LogWarning("[PlayerNetwork] defenderUI is null in UpdateLocalUI!");
+            if (waitingUI == null) Debug.LogWarning("[PlayerNetwork] waitingUI is null in UpdateLocalUI!");
+
+            if (waitingUI != null) waitingUI.SetActive(!started);
+
+            if (!started)
+            {
+                if (attackerUI != null) attackerUI.SetActive(false);
+                if (defenderUI != null) defenderUI.SetActive(false);
+                Debug.Log("[PlayerNetwork] Match not started - both team UIs hidden (waiting shown).");
+                return;
+            }
+
+            if (Team == 0)
+            {
+                if (defenderUI != null) defenderUI.SetActive(true);
+                if (attackerUI != null) attackerUI.SetActive(false);
+                Debug.Log("[PlayerNetwork] Showing DEFENDER UI, hiding ATTACKER UI.");
+            }
+            else if (Team == 1)
+            {
+                if (attackerUI != null) attackerUI.SetActive(true);
+                if (defenderUI != null) defenderUI.SetActive(false);
+                Debug.Log("[PlayerNetwork] Showing ATTACKER UI, hiding DEFENDER UI.");
+            }
+            else
+            {
+                if (attackerUI != null) attackerUI.SetActive(false);
+                if (defenderUI != null) defenderUI.SetActive(false);
+                Debug.Log("[PlayerNetwork] Team unknown -> hiding both UIs until team assigned.");
+            }
+        }
+
+        public void AttachButtonHandlers()
+        {
+            if (attackerUI != null)
+            {
+                var panelManager = attackerUI.GetComponentInChildren<AttackerUnitPanelManager>(true);
+                if (panelManager != null && panelManager.unitButtons != null)
+                {
+                    for (int i = 0; i < panelManager.unitButtons.Length; i++)
+                    {
+                        int idx = i;
+                        var btn = panelManager.unitButtons[i];
+                        if (btn == null) continue;
+                        btn.onClick.RemoveAllListeners();
+                        btn.onClick.AddListener(() =>
+                        {
+                            Debug.Log($"[PlayerNetwork] (runtime) attacker button {idx} clicked");
+                            panelManager.OnUnitButtonClickedRuntime(idx);
+                        });
+                    }
+                }
+            }
+
+            var buildManager = defenderUI != null ? defenderUI.GetComponentInChildren<BuildMenuManager>(true) : null;
+            if (buildManager != null)
+            {
+                Debug.Log("[PlayerNetwork] Found BuildMenuManager and ready.");
+            }
+        }
+
+        public void OpenBuildMenu(int spotId)
+        {
+            if (!Object.HasInputAuthority)
+            {
+                Debug.Log("[PlayerNetwork] OpenBuildMenu: not local player, ignoring.");
+                return;
+            }
+            if (Team != 0)
+            {
+                Debug.Log("[PlayerNetwork] OpenBuildMenu denied: not a defender.");
+                return;
+            }
+            if (defenderUI == null)
+            {
+                Debug.LogWarning("[PlayerNetwork] OpenBuildMenu: defenderUI is null!");
+                return;
+            }
+
+            var buildMenu = defenderUI.GetComponentInChildren<BuildMenuManager>(true);
+            if (buildMenu == null)
+            {
+                Debug.LogWarning("[PlayerNetwork] OpenBuildMenu: no BuildMenuManager found under defenderUI!");
+                return;
+            }
+
+            Debug.Log($"[PlayerNetwork] Opening build menu for spot {spotId}");
+            buildMenu.Open(spotId);
         }
 
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
         public void RPC_RequestSpawnUnit(int unitIndex, Vector2 worldPos, RpcInfo info = default)
         {
-            // As a safety check ensure we are on the server/host.
             if (!Runner.IsServer) return;
 
-            // Validation: only attackers (Team == 1) are allowed to spawn units.
-            if (Team != 1) return;
+            var srcPlayerRef = info.Source;
+            var playerObj = Runner.GetPlayerObject(srcPlayerRef);
+            var pn = playerObj != null ? playerObj.GetComponent<PlayerNetwork>() : null;
+            if (pn == null)
+            {
+                Debug.Log("[RPC_RequestSpawnUnit] sender has no PlayerNetwork");
+                return;
+            }
 
-            // Forward the spawn request to the GamePlayManager which holds prefabs and performs the actual spawn.
-            // Pass the team and the requester (info.Source) so GamePlayManager can attribute ownership / permissions.
-            GamePlayManager.Instance.SpawnUnitByIndex(unitIndex, worldPos, Team, info.Source);
+            if (pn.Team != 1)
+            {
+                Debug.Log("[RPC_RequestSpawnUnit] denied: not attacker");
+                return;
+            }
+
+            int cost = GamePlayManager.Instance != null ? GamePlayManager.Instance.GetUnitCost(unitIndex) : int.MaxValue;
+            if (pn.Money < cost)
+            {
+                Debug.Log($"[RPC_RequestSpawnUnit] denied: not enough money (have {pn.Money}, need {cost})");
+                return;
+            }
+
+            pn.Money -= cost;
+            GamePlayManager.Instance.SpawnUnitByIndex(unitIndex, worldPos, pn.Team, srcPlayerRef);
+
+            Debug.Log($"[RPC_RequestSpawnUnit] spawned unit {unitIndex} at {worldPos} for player {srcPlayerRef}. Money left: {pn.Money}");
         }
 
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
         public void RPC_RequestPlaceTower(int towerIndex, int spotId, RpcInfo info = default)
         {
-            // Ensure this runs only on the server/host.
             if (!Runner.IsServer) return;
+            // (maintain original behavior)
+            var src = info.Source;
+            var playerObj = Runner.GetPlayerObject(src);
+            var pn = playerObj != null ? playerObj.GetComponent<PlayerNetwork>() : null;
+            if (pn == null) return;
 
-            // Validation: only defenders (Team == 0) may place towers.
-            if (Team != 0) return;
+            if (pn.Team != 0)
+            {
+                Debug.Log("[RPC_RequestPlaceTower] denied: not defender");
+                return;
+            }
 
-            // Forward the tower placement request to GamePlayManager.
-            // GamePlayManager should validate spot availability, consume resources, and actually place the tower.
-            GamePlayManager.Instance.PlaceTowerAtSpot(towerIndex, spotId, Team, info.Source);
+            int cost = GamePlayManager.Instance != null ? GamePlayManager.Instance.GetTowerCost(towerIndex) : int.MaxValue;
+            if (pn.Money < cost)
+            {
+                Debug.Log($"[RPC_RequestPlaceTower] denied: not enough money ({pn.Money} < {cost})");
+                return;
+            }
+
+            pn.Money -= cost;
+            GamePlayManager.Instance.PlaceTowerAtSpot(towerIndex, spotId, pn.Team, src);
+
+            Debug.Log($"[RPC_RequestPlaceTower] placed tower {towerIndex} at spot {spotId} for player {src}. Money left: {pn.Money}");
         }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
+        public void RPC_RequestUseAbility(int abilityId, Vector2 worldPos, RpcInfo info = default)
+        {
+            if (!Runner.IsServer)
+            {
+                Debug.Log("[RPC_RequestUseAbility] Not server - ignoring.");
+                return;
+            }
+
+            var src = info.Source;
+
+            // Najpierw spróbuj standardowego API
+            NetworkObject playerObj = null;
+            try
+            {
+                playerObj = Runner.GetPlayerObject(src);
+            }
+            catch
+            {
+                playerObj = null;
+            }
+
+            // Fallback: sprawdź mapę utrzymywaną przez FusionNetworkManager
+            if (playerObj == null)
+            {
+                if (Networking.FusionNetworkManager.PlayerObjects != null)
+                {
+                    Networking.FusionNetworkManager.PlayerObjects.TryGetValue(src, out playerObj);
+                }
+            }
+
+            var pn = playerObj != null ? playerObj.GetComponent<PlayerNetwork>() : null;
+            if (pn == null)
+            {
+                Debug.Log("[RPC_RequestUseAbility] sender has no PlayerNetwork");
+                return;
+            }
+
+            int team = pn.Team;
+            bool allowed = false;
+            if (abilityId >= 0 && abilityId <= 2 && team == 1) allowed = true;
+            if (abilityId >= 3 && abilityId <= 5 && team == 0) allowed = true;
+
+            if (!allowed)
+            {
+                Debug.Log($"[RPC_RequestUseAbility] denied: team {team} cannot use ability {abilityId}");
+                return;
+            }
+
+            if (GamePlayManager.Instance != null)
+            {
+                GamePlayManager.Instance.Server_HandleAbilityRequest(abilityId, worldPos, src);
+            }
+            else
+            {
+                Debug.LogWarning("[RPC_RequestUseAbility] GamePlayManager.Instance == null");
+            }
+        }
+
+
+        // Other callbacks and stubs unchanged...
+        public void OnInput(NetworkRunner runner, NetworkInput input) { }
+        public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     }
 }
-

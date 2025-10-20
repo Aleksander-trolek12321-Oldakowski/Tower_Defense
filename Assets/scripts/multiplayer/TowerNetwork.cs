@@ -11,7 +11,17 @@ namespace Networking
         public override void Spawned()
         {
             base.Spawned();
-            UpdateVisual();
+            
+            var tv = GetComponent<TeamVisibility>();
+            if (tv != null)
+            {
+                tv.UpdateVisibility();
+            }
+            else
+            {
+                // fallback: if no TeamVisibility attached, optionally set visuals directly
+                if (visuals != null) visuals.SetActive(true);
+            }
         }
 
         /// <summary>

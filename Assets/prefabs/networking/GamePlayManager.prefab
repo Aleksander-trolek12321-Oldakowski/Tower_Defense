@@ -65,10 +65,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   unitPrefabs:
-  - {fileID: 0}
+  - {fileID: 8455566256650108374, guid: 6b176929253ec29418d0d9396e81c942, type: 3}
   towerPrefabs:
-  - {fileID: 0}
+  - {fileID: 7285382449032838958, guid: e14dbe20c82a21e4ba7aee840e2ae4e9, type: 3}
   towerSpots:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
+  - {fileID: 7997746939229047014, guid: 022047a8e5071a646a00c6bb6b35b440, type: 3}
+  - {fileID: 2778707777401597405, guid: 6aeb3028f1c7626458fb7ba6bb8b7844, type: 3}
+  - {fileID: 7795952798483608124, guid: a137bd2d84ab06e46aa8f0d1147249f4, type: 3}
+  attackerSpawnPoints: []
+  initialUnitsPerSpawnPoint: 
+  unitCosts: 
+  towerCosts: 
+  _MatchStarted: 0

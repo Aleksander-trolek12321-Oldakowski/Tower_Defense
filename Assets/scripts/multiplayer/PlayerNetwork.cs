@@ -47,13 +47,6 @@ namespace Networking
         void Awake()
         {
             if (!Application.isPlaying) Local = null;
-	        var existing = FindObjectOfType<PlayerNetwork>();
-            if (existing != null && existing != this)
-            {
-                Destroy(this.gameObject);
-                return;
-            }
-            DontDestroyOnLoad(this.gameObject);
         }
 
         public override void Spawned()
@@ -61,6 +54,8 @@ namespace Networking
             base.Spawned();
 
             Debug.Log($"[PlayerNetwork] Spawned. IsLocal={Object.HasInputAuthority} Team={Team} Money={Money}");
+
+            EnsurePersistentUIRoot();
 
             if (!Object.HasInputAuthority)
             {
@@ -82,18 +77,21 @@ namespace Networking
                 attackerUIInstance = Instantiate(attackerUIPrefab, uiParent);
                 attackerUIInstance.name = attackerUIPrefab.name + "_local";
                 attackerUI = attackerUIInstance;
+                attackerUIInstance.SetActive(false);
             }
             if (defenderUIPrefab != null)
             {
                 defenderUIInstance = Instantiate(defenderUIPrefab, uiParent);
                 defenderUIInstance.name = defenderUIPrefab.name + "_local";
                 defenderUI = defenderUIInstance;
+                defenderUIInstance.SetActive(false);
             }
             if (waitingUIPrefab != null)
             {
                 waitingUIInstance = Instantiate(waitingUIPrefab, uiParent);
                 waitingUIInstance.name = waitingUIPrefab.name + "_local";
                 waitingUI = waitingUIInstance;
+                waitingUIInstance.SetActive(true);
             }
 
             AssignCanvasSettingsForLocalUI();
@@ -109,12 +107,6 @@ namespace Networking
             }
 
             Local = this;
-
-            if (Object.HasInputAuthority && SceneManager.GetActiveScene().name == "Lobby")
-            {
-                // odroczenie wywołania dołączania do lobby, aby server zdążył zarejestrować obiekt i lobby był gotowy
-                StartCoroutine(DelayedJoinLobbyCoroutine());
-            }
 
             UpdateLocalUI();
 
@@ -156,7 +148,7 @@ namespace Networking
 
             float timeout = 5f;
             float t = 0f;
-            while (Networking.LobbyManager.Instance == null && t < timeout)
+            while (LobbyManager.Instance == null && t < timeout)
             {
                 t += Time.deltaTime;
                 yield return null;
@@ -535,6 +527,7 @@ namespace Networking
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             if (!Object.HasInputAuthority) return;
+            EnsurePersistentUIRoot();
             EnsureLocalUIAndCamera();
         }
 

@@ -24,6 +24,14 @@ namespace Networking
         {
             // Limit application frame rate for mobile stability
             Application.targetFrameRate = 60;
+
+            var existing = FindObjectOfType<FusionNetworkManager>();
+            if (existing != null && existing != this)
+            {
+                Destroy(this.gameObject);
+                return;
+            }
+            DontDestroyOnLoad(this.gameObject);
         }
 
         async void Start()
@@ -225,6 +233,11 @@ namespace Networking
             {
                 PlayerObjects.Remove(player);
                 Debug.Log($"[DEBUG] Removed PlayerRef {player} from PlayerObjects map.");
+            }
+
+            if (LobbyManager.Instance != null)
+            {
+                LobbyManager.Instance.Server_RemovePlayer(player);
             }
 
             GamePlayManager.Instance?.OnPlayerLeft(player);

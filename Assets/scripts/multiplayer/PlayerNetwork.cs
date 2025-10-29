@@ -4,6 +4,7 @@ using Fusion;
 using UnityEngine;
 using UI;
 using Controller;
+using UnityEngine.SceneManagement;
 
 namespace Networking
 {
@@ -33,6 +34,8 @@ namespace Networking
         private GameObject defenderUIInstance;
         private GameObject waitingUIInstance;
 
+        private const string PERSISTENT_UI_ROOT_NAME = "UI_ROOT_PERSISTENT";
+
         // Networked state
         [Networked] public int Team { get; set; } = -1;
         [Networked] public int Money { get; set; } = 0;
@@ -44,6 +47,13 @@ namespace Networking
         void Awake()
         {
             if (!Application.isPlaying) Local = null;
+	        var existing = FindObjectOfType<PlayerNetwork>();
+            if (existing != null && existing != this)
+            {
+                Destroy(this.gameObject);
+                return;
+            }
+            DontDestroyOnLoad(this.gameObject);
         }
 
         public override void Spawned()
@@ -100,10 +110,23 @@ namespace Networking
 
             Local = this;
 
+            if (Object.HasInputAuthority && SceneManager.GetActiveScene().name == "Lobby")
+            {
+                // odroczenie wywołania dołączania do lobby, aby server zdążył zarejestrować obiekt i lobby był gotowy
+                StartCoroutine(DelayedJoinLobbyCoroutine());
+            }
+
             UpdateLocalUI();
 
             if (forceAttachButtonHandlers)
                 AttachButtonHandlers();
+
+            // subscribe to sceneLoaded so we can recreate UI/cam after scene changes
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+
+            // delay join lobby a bit (race conditions) - will internally wait for LobbyManager if needed
+            StartCoroutine(DelayedJoinLobbyCoroutine());
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
@@ -115,12 +138,34 @@ namespace Networking
             if (waitingUIInstance != null) Destroy(waitingUIInstance);
 
             attackerUIInstance = defenderUIInstance = waitingUIInstance = null;
+
             attackerUI = defenderUI = waitingUI = null;
 
             if (localCameraInstance != null) Destroy(localCameraInstance);
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+
             if (Local == this) Local = null;
 
             Debug.Log("[PlayerNetwork] Despawned.");
+        }
+
+        private System.Collections.IEnumerator DelayedJoinLobbyCoroutine()
+        {
+            
+            yield return new WaitForSeconds(0.1f);
+
+            float timeout = 5f;
+            float t = 0f;
+            while (Networking.LobbyManager.Instance == null && t < timeout)
+            {
+                t += Time.deltaTime;
+                yield return null;
+            }
+
+            string playerName = $"Player{Runner.LocalPlayer}";
+
+            Debug.Log($"[PlayerNetwork] Requesting join lobby as {playerName}");
+            RPC_RequestJoinLobby(playerName);
         }
 
         void Update()
@@ -266,6 +311,104 @@ namespace Networking
         }
 
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
+        public void RPC_RequestJoinLobby(string playerName, RpcInfo info = default)
+        {
+            if (!Runner.IsServer) 
+            {
+                Debug.LogWarning("[RPC_RequestJoinLobby] Not running on server - ignoring.");
+                return;
+            }
+
+            var src = info.Source;
+            NetworkObject playerObj = null;
+            try
+            {
+                playerObj = Runner.GetPlayerObject(src);
+            }
+            catch { playerObj = null; }
+
+            if (playerObj == null)
+            {
+                try
+                {
+                    if (FusionNetworkManager.PlayerObjects != null)
+                    {
+                        FusionNetworkManager.PlayerObjects.TryGetValue(src, out playerObj);
+                    }
+                }
+                catch { /* ignore */ }
+            }
+
+            PlayerRef resolvedRef = src; 
+            if (playerObj == null)
+            {
+                if (this != null && this.Object != null)
+                {
+                    playerObj = this.Object;
+
+                    try
+                    {
+                        var map = Networking.FusionNetworkManager.PlayerObjects;
+                        if (map != null)
+                        {
+                            foreach (var kv in map)
+                            {
+                                if (kv.Value == playerObj)
+                                {
+                                    resolvedRef = kv.Key;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch { /* ignore */ }
+                }
+            }
+
+            if (playerObj == null && resolvedRef != PlayerRef.None)
+            {
+                try
+                {
+                    playerObj = Runner.GetPlayerObject(resolvedRef);
+                }
+                catch { playerObj = null; }
+            }
+
+            if (playerObj == null)
+            {
+                Debug.LogWarning($"[RPC_RequestJoinLobby] Could not find player object for RPC source {src} (resolved {resolvedRef}). Aborting join.");
+                return;
+            }
+
+            var pn = playerObj.GetComponent<PlayerNetwork>();
+            if (pn == null)
+            {
+                Debug.LogWarning("[RPC_RequestJoinLobby] found object has no PlayerNetwork component.");
+                return;
+            }
+
+            if (resolvedRef == PlayerRef.None)
+            {
+                try
+                {
+                    var inputAuth = playerObj.InputAuthority;
+                    resolvedRef = inputAuth;
+                }
+                catch { /* ignore */ }
+            }
+
+            if (LobbyManager.Instance != null)
+            {
+                Debug.Log($"[RPC_RequestJoinLobby] Registering player '{playerName}' as {resolvedRef}");
+                LobbyManager.Instance.Server_AddPlayer(resolvedRef, playerName);
+            }
+            else
+            {
+                Debug.LogWarning("[RPC_RequestJoinLobby] LobbyManager.Instance is null on server.");
+            }
+        }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
         public void RPC_RequestSpawnUnit(int unitIndex, Vector2 worldPos, RpcInfo info = default)
         {
             if (!Runner.IsServer) return;
@@ -384,6 +527,63 @@ namespace Networking
             {
                 Debug.LogWarning("[RPC_RequestUseAbility] GamePlayManager.Instance == null");
             }
+        }
+
+        // -----------------------
+        // Scene / UI persistence helpers
+        // -----------------------
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if (!Object.HasInputAuthority) return;
+            EnsureLocalUIAndCamera();
+        }
+
+        private void EnsurePersistentUIRoot()
+        {
+            var existing = GameObject.Find(PERSISTENT_UI_ROOT_NAME);
+            if (existing == null)
+            {
+                var go = new GameObject(PERSISTENT_UI_ROOT_NAME);
+                DontDestroyOnLoad(go);
+            }
+        }
+
+        private void EnsureLocalUIAndCamera()
+        {
+            GameObject uiRoot = GameObject.Find(PERSISTENT_UI_ROOT_NAME);
+
+            if (attackerUIInstance == null && attackerUIPrefab != null)
+            {
+                attackerUIInstance = Instantiate(attackerUIPrefab, uiRoot != null ? uiRoot.transform : null);
+                attackerUIInstance.name = attackerUIPrefab.name + "_local";
+                attackerUI = attackerUIInstance;
+            }
+
+            if (defenderUIInstance == null && defenderUIPrefab != null)
+            {
+                defenderUIInstance = Instantiate(defenderUIPrefab, uiRoot != null ? uiRoot.transform : null);
+                defenderUIInstance.name = defenderUIPrefab.name + "_local";
+                defenderUI = defenderUIInstance;
+            }
+
+            if (waitingUIInstance == null && waitingUIPrefab != null)
+            {
+                waitingUIInstance = Instantiate(waitingUIPrefab, uiRoot != null ? uiRoot.transform : null);
+                waitingUIInstance.name = waitingUIPrefab.name + "_local";
+                waitingUI = waitingUIInstance;
+            }
+
+            if (localCameraInstance == null && localCameraPrefab != null)
+            {
+                localCameraInstance = Instantiate(localCameraPrefab);
+                var cam = localCameraInstance.GetComponent<Camera>();
+                if (cam != null)
+                {
+                    AssignCameraToCanvases(cam);
+                }
+            }
+
+            AssignCanvasSettingsForLocalUI();
         }
 
 

@@ -24,6 +24,14 @@ namespace Networking
         {
             // Limit application frame rate for mobile stability
             Application.targetFrameRate = 60;
+
+            var existing = FindObjectOfType<FusionNetworkManager>();
+            if (existing != null && existing != this)
+            {
+                Destroy(this.gameObject);
+                return;
+            }
+            DontDestroyOnLoad(this.gameObject);
         }
 
         async void Start()
@@ -227,7 +235,118 @@ namespace Networking
                 Debug.Log($"[DEBUG] Removed PlayerRef {player} from PlayerObjects map.");
             }
 
+            if (LobbyManager.Instance != null)
+            {
+                LobbyManager.Instance.Server_RemovePlayer(player);
+            }
+
             GamePlayManager.Instance?.OnPlayerLeft(player);
+        }
+
+        public void OnSceneLoadDone(NetworkRunner runnerRef)
+        {
+            if (!runnerRef.IsServer) return;
+
+            Debug.Log("[FusionNetworkManager] OnSceneLoadDone: ensuring player objects exist...");
+
+            var activePlayers = new List<PlayerRef>(runnerRef.ActivePlayers);
+            foreach (var p in activePlayers)
+            {
+                NetworkObject existing = null;
+                try { existing = runnerRef.GetPlayerObject(p); } catch { existing = null; }
+
+                if (existing != null)
+                {
+                    Debug.Log($"[FusionNetworkManager] Player object for {p} already exists - skipping.");
+                    continue;
+                }
+
+                int assignedTeam = -1;
+                try { if (playerTeams != null && playerTeams.TryGetValue(p, out var t)) assignedTeam = t; } catch { assignedTeam = -1; }
+                if (assignedTeam == -1) assignedTeam = UnityEngine.Random.Range(0, 2);
+
+                Vector3 spawnPos = (assignedTeam == 0) ? new Vector3(-2f, 0f, 0f) : new Vector3(2f, 0f, 0f);
+
+                NetworkObject spawned = null;
+                try
+                {
+                    spawned = runnerRef.Spawn(playerPrefab, spawnPos, Quaternion.identity, p);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[FusionNetworkManager] Exception while spawning player for {p}: {ex.Message}");
+                }
+
+                if (spawned == null)
+                {
+                    Debug.LogError($"[FusionNetworkManager] Failed to spawn player object for {p} (returned null). Check playerPrefab registration in NetworkProjectConfig and inspector.");
+                    continue;
+                }
+
+                var pn = spawned.GetComponent<PlayerNetwork>();
+                if (pn != null)
+                {
+                    pn.Team = assignedTeam;
+                    pn.Money = 100;
+                    Debug.Log($"[FusionNetworkManager] Spawned player object for {p} with team {assignedTeam} and Money=100");
+                }
+                else
+                {
+                    Debug.LogWarning("[FusionNetworkManager] Spawned player object lacks PlayerNetwork component.");
+                }
+
+                try { if (playerTeams != null && !playerTeams.ContainsKey(p)) playerTeams[p] = assignedTeam; } catch { }
+            }
+
+            StartCoroutine(WaitForGamePlayManagerAndStartMatchCoroutine());
+        }
+
+        private System.Collections.IEnumerator WaitForGamePlayManagerAndStartMatchCoroutine()
+        {
+            float timeout = 5f;
+            float t = 0f;
+
+            Debug.Log("[FusionNetworkManager] Waiting for GamePlayManager.Instance...");
+
+            while (t < timeout)
+            {
+                if (GamePlayManager.Instance != null) break;
+                t += Time.deltaTime;
+                yield return null;
+            }
+
+            if (GamePlayManager.Instance == null)
+            {
+                Debug.LogWarning("[FusionNetworkManager] GamePlayManager not found after scene load (timeout). Match will not auto-start.");
+                yield break;
+            }
+
+            if (runner == null)
+            {
+                Debug.LogWarning("[FusionNetworkManager] runner reference is null in WaitForGamePlayManagerAndStartMatchCoroutine.");
+                yield break;
+            }
+
+            if (!runner.IsServer)
+            {
+                Debug.Log("[FusionNetworkManager] Not server in WaitForGamePlayManagerAndStartMatchCoroutine - abort.");
+                yield break;
+            }
+
+            int currentPlayers = 0;
+            try { currentPlayers = new List<PlayerRef>(runner.ActivePlayers).Count; } catch { currentPlayers = playerTeams != null ? playerTeams.Count : 0; }
+
+            Debug.Log($"[FusionNetworkManager] After scene load: currentPlayers={currentPlayers}, maxPlayers={maxPlayers}");
+
+            if (currentPlayers >= maxPlayers)
+            {
+                Debug.Log("[FusionNetworkManager] Enough players - calling GamePlayManager.StartMatchOnServer()");
+                GamePlayManager.Instance.StartMatchOnServer();
+            }
+            else
+            {
+                Debug.Log($"[FusionNetworkManager] Not enough players to start match (have {currentPlayers}, need {maxPlayers}).");
+            }
         }
 
         // -------------------------
@@ -259,7 +378,7 @@ namespace Networking
         public void OnReliableDataReceived(NetworkRunner runnerRef, PlayerRef player, ReliableKey key, ArraySegment<byte> data) { }
 
         public void OnSceneLoadStart(NetworkRunner runnerRef) { }
-        public void OnSceneLoadDone(NetworkRunner runnerRef) { }
+
         public void OnSessionListUpdated(NetworkRunner runnerRef, List<SessionInfo> sessionList) { }
 
         public void OnConnectRequest(NetworkRunner runnerRef, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }

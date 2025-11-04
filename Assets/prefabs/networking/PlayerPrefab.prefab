@@ -1,67 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &6908416773963684265
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 126653480158670332}
-  m_Layer: 0
-  m_Name: AttackerUI
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &126653480158670332
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6908416773963684265}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 764256429852040299}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &7823447744010460591
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 6551010369630996692}
-  m_Layer: 0
-  m_Name: DefenderUI
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &6551010369630996692
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7823447744010460591}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 764256429852040299}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &8432711220326309318
 GameObject:
   m_ObjectHideFlags: 0
@@ -73,6 +11,7 @@ GameObject:
   - component: {fileID: 764256429852040299}
   - component: {fileID: 4033236765425478252}
   - component: {fileID: 5299193357127125462}
+  - component: {fileID: 3314130814540384273}
   m_Layer: 0
   m_Name: PlayerPrefab
   m_TagString: Untagged
@@ -92,9 +31,7 @@ Transform:
   m_LocalPosition: {x: 0.37155735, y: -1.559714, z: 0.0067502107}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 126653480158670332}
-  - {fileID: 6551010369630996692}
+  m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &4033236765425478252
@@ -115,6 +52,7 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 5299193357127125462}
+  - {fileID: 3314130814540384273}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &5299193357127125462
 MonoBehaviour:
@@ -128,6 +66,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c8f4c282270394144a22db5821f4c750, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  attackerUIPrefab: {fileID: 93628314050592127, guid: 3899b64b93cf45f4788c40ebc754dae3, type: 3}
+  defenderUIPrefab: {fileID: 93628314050592127, guid: fbd7bdc955dc90d4ca8287d7e3f00cd8, type: 3}
+  waitingUIPrefab: {fileID: 2780509444994113149, guid: 5b3f29fa9ad29394bb10e860f32d771d, type: 3}
+  attackerUI: {fileID: 93628314050592127, guid: 3899b64b93cf45f4788c40ebc754dae3, type: 3}
+  defenderUI: {fileID: 93628314050592127, guid: fbd7bdc955dc90d4ca8287d7e3f00cd8, type: 3}
+  waitingUI: {fileID: 2780509444994113149, guid: 5b3f29fa9ad29394bb10e860f32d771d, type: 3}
+  localCameraPrefab: {fileID: 2793637421958265430, guid: 319efc784f53f1b4bafea429502b38d9, type: 3}
+  forceAttachButtonHandlers: 0
   _Team: -1
-  defenderUI: {fileID: 7823447744010460591}
-  attackerUI: {fileID: 6908416773963684265}
+  _Money: 100
+--- !u!114 &3314130814540384273
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8432711220326309318}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _stateAuthorityChangeErrorCorrectionDelta: 0
+  SyncScale: 0
+  SyncParent: 0
+  _autoAOIOverride: 1
+  DisableSharedModeInterpolation: 0

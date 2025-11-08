@@ -1,6 +1,7 @@
 public enum EnemyType
 {
-    Light,
-    Normal,
-    Heavy
+    Werewolf,
+    Zombie,
+    Ork,
+    Ghost
 }

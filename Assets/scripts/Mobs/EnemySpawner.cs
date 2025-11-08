@@ -11,7 +11,7 @@ public class EnemySpawner : NetworkBehaviour
 
     private void Awake() => Instance = this;
 
-    // Wywoływane z UI: Light=0, Normal=1, Heavy=2
+    // 🔹 UI button click
     public void OnSpawnButtonPressed(int enemyType)
     {
         if (Runner == null) return;
@@ -21,18 +21,12 @@ public class EnemySpawner : NetworkBehaviour
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
     private void RPC_RequestSpawn(int typeIndex)
     {
-        SpawnEnemy((EnemyType)typeIndex);
-    }
-
-    private void SpawnEnemy(EnemyType type)
-    {
         if (!Runner.IsServer) return;
 
         var enemyObj = Runner.Spawn(enemyPrefab, spawnPoint.position, Quaternion.identity);
-
         if (enemyObj.TryGetComponent<EnemyAI>(out var ai))
         {
-            ai.InitStats(type);
+            ai.InitStats((EnemyType)typeIndex);
             ai.SetPath(startPath);
         }
     }

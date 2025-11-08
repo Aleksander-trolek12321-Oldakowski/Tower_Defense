@@ -392,5 +392,29 @@ namespace Networking
             foreach (var t in turrets) Debug.Log($"[GamePlayManager] (sim) Reverting turret boost: {t.name}");
         }
         void StartCoroutine_CastTurretBoost(int team, float multiplier, float dur) => StartCoroutine(CastTurretBoostCoroutine(team, multiplier, dur));
+
+        [Networked] public int SelectedBranchIndex { get; set; } = 0;
+
+        public void SetSelectedBranch(int index)
+        {
+            if (!Runner) return;
+
+            if (Runner.IsServer)
+            {
+            SelectedBranchIndex = index;
+            Debug.Log($"[GamePlayManager] Path index set to {index} (server).");
+            }
+        else
+            {
+            RPC_RequestPathChange(index);
+            }
+        }
+
+[Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestPathChange(int index)
+        {
+            SelectedBranchIndex = index;
+            Debug.Log($"[GamePlayManager] Path index changed via RPC → {index}");
+        }
     }
 }

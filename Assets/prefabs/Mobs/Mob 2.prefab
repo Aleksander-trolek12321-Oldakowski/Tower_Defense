@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 3002526007245064954}
   - component: {fileID: 4365835389763275489}
   m_Layer: 0
-  m_Name: Mob
+  m_Name: Mob 2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -79,7 +79,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 8859273575814025313, guid: a169ea26799e4644788d3bb5e73ab6f3, type: 3}
+  m_Sprite: {fileID: -4469481312394968760, guid: e16f495339712d9409bead6b807f4566, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -102,7 +102,7 @@ MonoBehaviour:
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SortKey: 1109528847
+  SortKey: 1345838348
   ObjectInterest: 1
   Flags: 131073
   NestedObjects: []
@@ -174,7 +174,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 13.69, y: 19.58}
+    oldSize: {x: 10.85, y: 18.83}
     newSize: {x: 1, y: 1}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -197,4 +197,4 @@ MonoBehaviour:
   _HP: 1
   _Speed: 1
   _Attack: 1
-  _Type: 0
+  _Type: 2

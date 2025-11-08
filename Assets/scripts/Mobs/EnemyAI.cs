@@ -19,6 +19,8 @@ public class EnemyAI : NetworkBehaviour
     public override void Spawned()
     {
         rb = GetComponent<Rigidbody2D>();
+        rb.gravityScale = 0f; // 🔥 nie spadaj
+        rb.constraints = RigidbodyConstraints2D.FreezeRotation; 
     }
 
     public void InitStats(EnemyType type)
@@ -26,14 +28,17 @@ public class EnemyAI : NetworkBehaviour
         Type = type;
         switch (type)
         {
-            case EnemyType.Light:
+            case EnemyType.Werewolf:
                 HP = 2f; Speed = 3f; Attack = 0.5f;
                 break;
-            case EnemyType.Normal:
+            case EnemyType.Zombie:
                 HP = 4f; Speed = 2f; Attack = 1f;
                 break;
-            case EnemyType.Heavy:
+            case EnemyType.Ork:
                 HP = 8f; Speed = 1f; Attack = 2f;
+                break;
+            case EnemyType.Ghost:
+                HP = 1f; Speed = 8f; Attack = 1f;
                 break;
         }
     }
@@ -43,10 +48,9 @@ public class EnemyAI : NetworkBehaviour
         path = manager;
         currentWaypointIndex = 0;
         reachedEnd = false;
-
-        // 🔥 Ustaw od razu pozycję celu na pierwszy waypoint
         if (path != null && path.GetWaypoint(0) != null)
         {
+            transform.position = path.GetWaypoint(0).position; // startuj dokładnie na początku ścieżki
             MoveTowardsImmediate(path.GetWaypoint(0).position);
         }
     }
@@ -59,6 +63,7 @@ public class EnemyAI : NetworkBehaviour
         }
         else
         {
+            // 🔹 interpolacja po stronie klienta (bez spadania)
             transform.position = Vector2.Lerp(transform.position, NetworkedPosition, 0.2f);
         }
     }
@@ -72,6 +77,7 @@ public class EnemyAI : NetworkBehaviour
 
         Vector2 dir = ((Vector2)waypoint.position - rb.position);
         float dist = dir.magnitude;
+
         if (dist < 0.1f)
         {
             currentWaypointIndex++;
@@ -80,21 +86,19 @@ public class EnemyAI : NetworkBehaviour
             {
                 reachedEnd = true;
 
-                // Jeśli są odnogi — wybierz kolejną ścieżkę
                 if (path.HasBranches)
                 {
-                    int branchIndex = GameManager.Instance.SelectedBranchIndex;
+                    int branchIndex = Networking.GamePlayManager.Instance.SelectedBranchIndex;
                     var nextPath = path.GetBranch(branchIndex);
+
                     if (nextPath != null)
                     {
                         path = nextPath;
                         currentWaypointIndex = 0;
                         reachedEnd = false;
-
-                        // 🔥 Po zmianie ścieżki od razu rusza do nowego pierwszego waypointu
-                        MoveTowardsImmediate(path.GetWaypoint(0).position);
                     }
                 }
+
                 return;
             }
         }
@@ -105,9 +109,6 @@ public class EnemyAI : NetworkBehaviour
         NetworkedPosition = newPos;
     }
 
-    /// <summary>
-    /// Natychmiastowe ruszenie w kierunku punktu, bez czekania na następny tick.
-    /// </summary>
     private void MoveTowardsImmediate(Vector2 target)
     {
         if (rb == null) return;
@@ -122,8 +123,6 @@ public class EnemyAI : NetworkBehaviour
     {
         HP -= dmg;
         if (HP <= 0)
-        {
             Runner.Despawn(Object);
-        }
     }
 }

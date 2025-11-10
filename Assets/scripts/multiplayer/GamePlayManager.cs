@@ -410,7 +410,7 @@ namespace Networking
             }
         }
 
-[Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestPathChange(int index)
         {
             SelectedBranchIndex = index;

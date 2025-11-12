@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 913ad2c8ac96dd2489b364c0248aec24
+guid: c4625d37164f57040b12277321808529
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 2137045761389772304
-    second: slowingTower1_0
+      213: -5782521184205631276
+    second: zombie_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -165,13 +165,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: slowingTower1_0
+      name: zombie_0
       rect:
         serializedVersion: 2
-        x: 303
-        y: 9
-        width: 1400
-        height: 1923
+        x: 317
+        y: 40
+        width: 1169
+        height: 1922
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -179,8 +179,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 01e34642ccf48ad10800000000000000
-      internalID: 2137045761389772304
+      spriteID: 4d0904dbe9b50cfa0800000000000000
+      internalID: -5782521184205631276
       vertices: []
       indices: 
       edges: []
@@ -196,7 +196,7 @@ TextureImporter:
     weights: []
     secondaryTextures: []
     nameFileIdTable:
-      slowingTower1_0: 2137045761389772304
+      zombie_0: -5782521184205631276
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

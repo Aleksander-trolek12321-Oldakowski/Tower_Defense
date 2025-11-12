@@ -1,0 +1,208 @@
+using Fusion;
+using UnityEngine;
+using System.Collections;
+
+[RequireComponent(typeof(Rigidbody2D))]
+public class EnemyAI : NetworkBehaviour
+{
+    [Networked] public float HP { get; set; }
+    [Networked] public float Speed { get; set; }
+    [Networked] public float Attack { get; set; }
+    [Networked] public EnemyType Type { get; set; }
+
+    [Networked] public Vector2 NetworkedPosition { get; set; }
+    [Networked] public int SpriteIndex { get; set; } = 0;
+    [Networked] public bool GhostVisible { get; set; } = true;
+
+    private Rigidbody2D rb;
+    private PathManager path;
+    private int currentWaypointIndex = 0;
+    private bool reachedEnd = false;
+
+    [Header("Visuals")]
+    public GameObject visualsRoot;
+    public SpriteRenderer spriteRenderer;
+    public Animator animator;
+    public Sprite[] typeSprites;
+
+    public override void Spawned()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        if (rb != null)
+        {
+            rb.gravityScale = 0f;
+            rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+            rb.isKinematic = !Runner.IsServer;
+        }
+
+        if (Runner != null && Runner.IsServer && Type == EnemyType.Ghost)
+        {
+            StartCoroutine(GhostCycleCoroutine());
+        }
+
+        if (spriteRenderer == null)
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+
+        ApplySpriteFromIndex();
+
+        if (Runner != null && Runner.IsServer)
+            NetworkedPosition = transform.position;
+    }
+
+    public void InitStats(EnemyType type)
+    {
+        Type = type;
+        switch (type)
+        {
+            case EnemyType.Werewolf:
+                HP = 2f; Speed = 3f; Attack = 0.5f;
+                break;
+            case EnemyType.Zombie:
+                HP = 4f; Speed = 2f; Attack = 1f;
+                break;
+            case EnemyType.Ork:
+                HP = 8f; Speed = 1f; Attack = 2f;
+                break;
+            case EnemyType.Ghost:
+                HP = 1f; Speed = 8f; Attack = 1f;
+                break;
+        }
+    }
+
+    void ApplySpriteFromIndex()
+    {
+        if (spriteRenderer == null) return;
+        var mgr = Networking.GamePlayManager.Instance;
+        if (mgr != null && mgr.enemyTypeSprites != null && SpriteIndex >= 0 && SpriteIndex < mgr.enemyTypeSprites.Length)
+        {
+            var s = mgr.enemyTypeSprites[SpriteIndex];
+            if (s != null)
+                spriteRenderer.sprite = s;
+        }
+    }
+
+
+    IEnumerator GhostCycleCoroutine()
+    {
+        while (true)
+        {
+
+            GhostVisible = true;
+            yield return new WaitForSeconds(3f);
+            GhostVisible = false;
+            yield return new WaitForSeconds(4f);
+        }
+    }
+
+    int GetLocalPlayerTeam()
+    {
+        var localPn = Networking.PlayerNetwork.Local;
+        if (localPn != null) return localPn.Team;
+
+        // fallback scanning
+        var pns = FindObjectsOfType<MonoBehaviour>();
+        foreach (var mb in pns)
+        {
+            var t = mb.GetType();
+            if (t.Name == "PlayerNetwork")
+            {
+                var prop = t.GetProperty("Team");
+                if (prop != null)
+                {
+                    try
+                    {
+                        var val = prop.GetValue(mb);
+                        if (val is int) return (int)val;
+                    }
+                    catch { }
+                }
+            }
+        }
+        return -1;
+    }
+
+    public void SetInitialNetworkPosition(Vector2 pos)
+    {
+        if (Runner != null && Runner.IsServer)
+        {
+            NetworkedPosition = pos;
+            transform.position = pos;
+        }
+    }
+
+    public void SetPath(PathManager manager)
+    {
+        path = manager;
+        currentWaypointIndex = 0;
+        reachedEnd = false;
+        if (path != null && path.GetWaypoint(0) != null)
+        {
+            if (Runner != null && Runner.IsServer)
+            {
+                Vector3 startPos = path.GetWaypoint(0).position;
+                transform.position = startPos;
+                NetworkedPosition = (Vector2)startPos;
+            }
+            else
+            {
+                transform.position = path.GetWaypoint(0).position;
+            }
+        }
+    }
+
+    public override void FixedUpdateNetwork()
+    {
+        if (Runner != null && Runner.IsServer)
+        {
+            MoveOnServer();
+        }
+        else
+        {
+            float interp = 0.2f;
+            if (Runner != null) interp = Mathf.Clamp01((float)Runner.DeltaTime * 8f);
+
+            Vector2 cur = transform.position;
+            Vector2 target = NetworkedPosition;
+            Vector2 newPos = Vector2.Lerp(cur, target, interp);
+            transform.position = newPos;
+        }
+
+        ApplySpriteFromIndex();
+    }   
+
+    private void MoveOnServer()
+    {
+        if (path == null || reachedEnd) return;
+
+        var waypoint = path.GetWaypoint(currentWaypointIndex);
+        if (waypoint == null) return;
+
+        Vector2 dir = ((Vector2)waypoint.position - rb.position);
+        float dist = dir.magnitude;
+
+        if (dist < 0.1f)
+        {
+            currentWaypointIndex++;
+
+            if (currentWaypointIndex >= path.GetWaypointCount())
+            {
+                reachedEnd = true;
+                return;
+            }
+        }
+
+        dir.Normalize();
+        Vector2 newPos = rb.position + dir * Speed * (float)Runner.DeltaTime;
+        rb.MovePosition(newPos);
+        NetworkedPosition = newPos;
+    }
+
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_TakeDamage(float dmg)
+    {
+        if (!Runner.IsServer) return;
+        HP -= dmg;
+        if (HP <= 0)
+            Runner.Despawn(Object);
+    }
+}

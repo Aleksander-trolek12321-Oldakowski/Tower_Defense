@@ -46,4 +46,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   runnerPrefab: {fileID: 940822776553640367, guid: d6ddf3beda1faf649add6b140254d546, type: 3}
   playerPrefab: {fileID: 4033236765425478252, guid: 5637b472abfa91943aaa9a9f4d6db19f, type: 3}
-  maxPlayers: 2
+  maxPlayers: 1

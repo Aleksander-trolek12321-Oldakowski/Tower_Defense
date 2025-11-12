@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 913ad2c8ac96dd2489b364c0248aec24
+guid: e16f495339712d9409bead6b807f4566
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 2137045761389772304
-    second: slowingTower1_0
+      213: -4469481312394968760
+    second: Ork_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -165,13 +165,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: slowingTower1_0
+      name: Ork_0
       rect:
         serializedVersion: 2
-        x: 303
-        y: 9
-        width: 1400
-        height: 1923
+        x: 499
+        y: 12
+        width: 1085
+        height: 1883
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -179,8 +179,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 01e34642ccf48ad10800000000000000
-      internalID: 2137045761389772304
+      spriteID: 841837c3d6639f1c0800000000000000
+      internalID: -4469481312394968760
       vertices: []
       indices: 
       edges: []
@@ -196,7 +196,7 @@ TextureImporter:
     weights: []
     secondaryTextures: []
     nameFileIdTable:
-      slowingTower1_0: 2137045761389772304
+      Ork_0: -4469481312394968760
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

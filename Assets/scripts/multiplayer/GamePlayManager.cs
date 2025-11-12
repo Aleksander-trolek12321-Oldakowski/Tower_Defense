@@ -30,6 +30,8 @@ namespace Networking
         public int[] unitCosts;
         public int[] towerCosts;
 
+        public Sprite[] enemyTypeSprites;
+
         [Networked] public bool MatchStarted { get; set; } = false;
 
         void Awake()

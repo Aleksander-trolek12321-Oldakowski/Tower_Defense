@@ -14,6 +14,7 @@ namespace UI
         public int[] unitIndices;           // which unit index each button represents (usually 0..n-1)
 
         int selectedIndex = -1;
+        public Transform defaultSpawnPoint;
 
         void Start()
         {
@@ -111,10 +112,21 @@ namespace UI
         }
 
 
-        // helper used by runtime-attacher in PlayerNetwork
-        public void OnUnitButtonClickedRuntime(int buttonIndex)
+        public void OnUnitButtonClickedRuntime(int index)
         {
-            OnUnitButtonClicked(buttonIndex);
+            Vector2 spawnPos = Vector2.zero;
+            if (defaultSpawnPoint != null) spawnPos = (Vector2)defaultSpawnPoint.position;
+            else if (Networking.GamePlayManager.Instance != null && Networking.GamePlayManager.Instance.attackerSpawnPoints != null && Networking.GamePlayManager.Instance.attackerSpawnPoints.Length > 0)
+                spawnPos = (Vector2)Networking.GamePlayManager.Instance.attackerSpawnPoints[0].position;
+
+            if (Networking.PlayerNetwork.Local != null)
+            {
+                Networking.PlayerNetwork.Local.RPC_RequestSpawnUnit(index, spawnPos);
+            }
+            else
+            {
+                Debug.LogWarning("[AttackerUnitPanel] No local PlayerNetwork available to request spawn.");
+            }
         }
     }
 }

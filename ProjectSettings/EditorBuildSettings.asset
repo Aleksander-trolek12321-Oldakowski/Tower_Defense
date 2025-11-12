@@ -12,7 +12,7 @@ EditorBuildSettings:
     path: Assets/Scenes/Lobby.unity
     guid: bedeb4769889e954d97603070876fb7a
   - enabled: 1
-    path: Assets/Scenes/AttackMoby.unity
-    guid: f25f2692c8704fd4e94e10d3a5695e4a
+    path: Assets/Scenes/Game.unity
+    guid: eb86c19048d2bd24aa59431262ce46b0
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

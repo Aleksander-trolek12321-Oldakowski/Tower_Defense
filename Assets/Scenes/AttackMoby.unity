@@ -357,6 +357,10 @@ MonoBehaviour:
     RawGuidValue: 6fad55acd6c3dd549bf01adc8113c682
   spawnPoint: {fileID: 836968449}
   startPath: {fileID: 1750611787}
+  zombiesCount: 10
+  werewolvesCount: 4
+  ghostsCount: 2
+  orksCount: 1
 --- !u!4 &272135806
 Transform:
   m_ObjectHideFlags: 0

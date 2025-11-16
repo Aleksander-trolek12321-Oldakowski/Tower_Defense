@@ -1,26 +1,39 @@
-using Fusion;
 using UnityEngine;
 
 public class FreezeTower : TowerBase
 {
-    [Header("Freeze")]
-    public float freezeRadius = 3f;
-    public float freezeDuration = 10f;
-    public float cooldownSeconds = 20f;
+    public float freezeRadius = 2f;
+    public float freezeDuration = 3f;
+    public float fireRate = 5f;
 
-    protected override void OnFire()
+    void Start()
     {
-        var gm = Networking.GamePlayManager.Instance;
-        if (gm != null)
+        rotateTowardsTarget = false;
+    }
+
+    protected override void Update()
+    {
+        base.Update();
+        fireCooldown -= Time.deltaTime;
+
+        if (fireCooldown <= 0f)
         {
-            gm.ApplyFreezeToUnitsInRadius(transform.position, freezeRadius, freezeDuration);
-            Debug.Log("[FreezeTower] Applied freeze at " + transform.position);
+            fireCooldown = fireRate;
+            FireAt(null);
         }
-        else
+    }
+
+    public override void FireAt(Transform target)
+    {
+        var runnerObj = FindObjectOfType<Fusion.NetworkRunner>();
+        if (runnerObj == null || !runnerObj.IsServer)
         {
-            Debug.LogWarning("[FreezeTower] GamePlayManager.Instance == null");
+            return;
         }
 
-        cooldown = cooldownSeconds;
+        if (Networking.GamePlayManager.Instance != null)
+        {
+            Networking.GamePlayManager.Instance.ApplyFreezeToUnitsInRadius((Vector2)transform.position, freezeRadius, freezeDuration);
+        }
     }
 }

@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 8029203103450683918}
   - component: {fileID: 7575318384387861743}
   - component: {fileID: 5781957222742957997}
+  - component: {fileID: -2656695772796692274}
   m_Layer: 0
   m_Name: FreezeTower
   m_TagString: Turret
@@ -105,7 +106,7 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: 5781957222742957997}
+  - {fileID: -2656695772796692274}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &5781957222742957997
 MonoBehaviour:
@@ -119,11 +120,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7159977d87808df4bbac81b465d05e58, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  projectilePrefab: {fileID: 0}
+  turretPivot: {fileID: 0}
   range: 3
-  fireRate: 1
-  shootPoint: {fileID: 0}
-  damage: 1
+  rotateTowardsTarget: 0
   freezeRadius: 3
-  freezeDuration: 10
-  cooldownSeconds: 20
+  freezeDuration: 2
+  fireRate: 5
+--- !u!114 &-2656695772796692274
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5516628800861800019}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _stateAuthorityChangeErrorCorrectionDelta: 0
+  SyncScale: 0
+  SyncParent: 0
+  _autoAOIOverride: 0
+  DisableSharedModeInterpolation: 0

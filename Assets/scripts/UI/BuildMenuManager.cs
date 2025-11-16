@@ -36,10 +36,8 @@ namespace UI
                 rootPanel = this.gameObject;
             }
 
-            // ensure menu is closed initially
             rootPanel.SetActive(false);
 
-            // wire buttons if they exist
             if (towerButtons != null)
             {
                 for (int i = 0; i < towerButtons.Length; i++)
@@ -181,7 +179,7 @@ namespace UI
                 }
             }
 
-            if (local == null)
+            if (local == null || local.Object == null || !local.Object.HasInputAuthority)
             {
                 var allPns = FindObjectsOfType<Networking.PlayerNetwork>();
                 foreach (var pn in allPns)
@@ -198,7 +196,7 @@ namespace UI
                 }
             }
 
-            if (local == null)
+            if (local == null || local.Object == null || !local.Object.HasInputAuthority)
             {
                 Debug.LogWarning("[BuildMenu] No local player found. Cannot place tower.");
                 return;
@@ -231,15 +229,7 @@ namespace UI
                 return;
             }
 
-            try
-            {
-                local.RPC_RequestPlaceTower(towerIndex, currentSpotId);
-                Debug.Log("[BuildMenu] RPC_RequestPlaceTower invoked.");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError("[BuildMenu] RPC_RequestPlaceTower threw: " + ex.Message);
-            }
+            local.RPC_RequestPlaceTower(towerIndex, currentSpotId);
 
             Close();
         }

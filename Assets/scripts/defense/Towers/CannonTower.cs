@@ -1,35 +1,45 @@
-using Fusion;
 using UnityEngine;
+using Fusion;
 
 public class CannonTower : TowerBase
 {
-    [Header("Cannon")]
-    public float projectileSpeed = 8f;
+    public NetworkPrefabRef projectilePrefab;
+    public Transform muzzle;
+    public float projectileSpeed = 6f;
+    public float fireRate = 0.6f;
+    public float damage = 3f;
+    public float aoeRadius = 0.5f;
 
-    protected override void OnFire()
+    protected override void Update()
     {
-        if (projectilePrefab == null || currentTarget == null) return;
-        Vector3 spawnPos = shootPoint != null ? shootPoint.position : transform.position;
-        Vector2 dir = ((Vector2)currentTarget.position - (Vector2)spawnPos).normalized;
-
-        try
+        base.Update();
+        fireCooldown -= Time.deltaTime;
+        if (currentTarget != null && fireCooldown <= 0f)
         {
-            var no = Runner.Spawn(projectilePrefab, spawnPos, Quaternion.identity, PlayerRef.None);
-            var rb = no.GetComponent<Rigidbody2D>();
-            if (rb != null)
-            {
-                rb.velocity = dir * projectileSpeed;
-            }
-            var pj = no.GetComponent<ProjectileNetwork>();
-            if (pj != null)
-            {
-                pj.Init(damage, /*ownerTeam=*/0);
-                pj.isAoe = true;
-            }
+            fireCooldown = 1f / fireRate;
+            FireAt(currentTarget);
         }
-        catch (System.Exception ex)
+    }
+
+    public override void FireAt(Transform target)
+    {
+        if (target == null) return;
+
+        var runnerObj = FindObjectOfType<Fusion.NetworkRunner>();
+        if (runnerObj == null || !runnerObj.IsServer) return;
+
+        Vector3 spawnPos = muzzle != null ? muzzle.position : transform.position;
+        var no = runnerObj.Spawn(projectilePrefab, spawnPos, Quaternion.identity, Fusion.PlayerRef.None);
+        if (no != null)
         {
-            Debug.LogWarning("[CannonTower] Spawn projectile failed: " + ex.Message);
+            var proj = no.GetComponent<ProjectileNetwork>();
+            if (proj != null)
+            {
+                Vector2 dir = ((Vector2)target.position - (Vector2)spawnPos).normalized;
+                proj.InitVelocity(dir * projectileSpeed);
+                proj.damage = damage;
+                proj.aoeRadius = aoeRadius;
+            }
         }
     }
 }

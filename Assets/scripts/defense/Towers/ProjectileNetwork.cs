@@ -1,56 +1,99 @@
 using System;
+using System.Collections;
 using Fusion;
 using UnityEngine;
 
 public class ProjectileNetwork : NetworkBehaviour
 {
-    public int damage = 1;
-    public bool isAoe = false;
-    public float aoeRadius = 1.5f;
-    public float aoeDamage = 1f;
+    [Networked] public Vector2 NetworkedPosition { get; set; }
+    [Networked] public Vector2 NetworkedVelocity { get; set; }
 
-    public void Init(int dmg, int ownerTeam)
+    public float damage = 1f;
+    public float lifeTime = 5f;
+    public float aoeRadius = 0f;
+
+    Rigidbody2D rb;
+
+    public override void Spawned()
     {
-        damage = dmg;
+        rb = GetComponent<Rigidbody2D>();
+        if (Runner != null && Runner.IsServer)
+        {
+            NetworkedPosition = transform.position;
+            rb.isKinematic = true;
+            StartCoroutine(DespawnAfter(lifeTime));
+        }
     }
 
-    void OnTriggerEnter2D(Collider2D other)
+    public void InitVelocity(Vector2 vel)
     {
-        if (!Runner || !Runner.IsServer) return;
-
-        if (other.CompareTag("Unit"))
+        if (Runner != null && Runner.IsServer)
         {
-            var ai = other.GetComponent<EnemyAI>();
+            NetworkedVelocity = vel;
+        }
+    }
+
+    public override void FixedUpdateNetwork()
+    {
+        if (Runner == null) return;
+
+        if (Runner.IsServer)
+        {
+            Vector2 pos = NetworkedPosition;
+            Vector2 newPos = pos + NetworkedVelocity * (float)Runner.DeltaTime;
+            NetworkedPosition = newPos;
+            transform.position = newPos;
+        }
+        else
+        {
+            Vector2 cur = transform.position;
+            Vector2 targ = NetworkedPosition;
+            transform.position = Vector2.Lerp(cur, targ, 0.5f);
+        }
+    }
+
+    void OnTriggerEnter2D(Collider2D col)
+    {
+        if (Runner == null) return;
+
+        if (!Runner.IsServer) return;
+
+        if (col.CompareTag("Unit"))
+        {
+            var ai = col.GetComponent<EnemyAI>();
             if (ai != null)
             {
-                if (isAoe)
+                if (aoeRadius > 0f)
                 {
                     Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, aoeRadius);
                     foreach (var h in hits)
                     {
-                        if (h.CompareTag("Unit"))
+                        if (!h.CompareTag("Unit")) continue;
+                        var e = h.GetComponent<EnemyAI>();
+                        if (e != null)
                         {
-                            var e = h.GetComponent<EnemyAI>();
-                            if (e != null)
-                            {
-                                e.HP -= aoeDamage;
-                                if (e.HP <= 0) Runner.Despawn(e.Object);
-                            }
+                            e.RPC_TakeDamage(damage);
                         }
                     }
                 }
                 else
                 {
-                    ai.HP -= damage;
-                    if (ai.HP <= 0) Runner.Despawn(ai.Object);
+                    ai.RPC_TakeDamage(damage);
                 }
             }
 
+            // despawn projectile
             Runner.Despawn(Object);
+            return;
         }
-        else if (other.CompareTag("Turret"))
-        {
+
+        Runner.Despawn(Object);
+    }
+
+    IEnumerator DespawnAfter(float t)
+    {
+        yield return new WaitForSeconds(t);
+        if (Runner != null && Runner.IsServer && Object != null)
             Runner.Despawn(Object);
-        }
     }
 }

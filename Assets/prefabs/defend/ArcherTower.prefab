@@ -219,12 +219,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eda81996221bf33428ca0239d9c5e6a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  projectilePrefab: {fileID: 600355429390379767, guid: a3093e1ff7d002f45a75e985abba2eb3, type: 3}
+  turretPivot: {fileID: 2783455975192642712}
   range: 4
-  fireRate: 1
-  shootPoint: {fileID: 7773905751376890062}
-  damage: 1
+  rotateTowardsTarget: 1
+  projectilePrefab:
+    RawGuidValue: a3093e1ff7d002f45a75e985abba2eb3
+  muzzle: {fileID: 7773905751376890062}
   projectileSpeed: 12
+  fireRate: 1
+  damage: 1
 --- !u!114 &5549738832253755540
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -252,6 +255,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3711045991614624830}
   - component: {fileID: 2991342383451334464}
+  - component: {fileID: -972155189553928904}
   m_Layer: 0
   m_Name: ArcherTower
   m_TagString: Turret
@@ -292,6 +296,23 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: 2246526341309868983}
+  - {fileID: -972155189553928904}
   - {fileID: 5549738832253755540}
   ForceRemoteRenderTimeframe: 0
+--- !u!114 &-972155189553928904
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5516628800861800019}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _stateAuthorityChangeErrorCorrectionDelta: 0
+  SyncScale: 0
+  SyncParent: 0
+  _autoAOIOverride: 0
+  DisableSharedModeInterpolation: 0

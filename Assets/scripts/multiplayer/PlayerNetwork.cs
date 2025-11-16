@@ -436,12 +436,38 @@ namespace Networking
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
         public void RPC_RequestPlaceTower(int towerIndex, int spotId, RpcInfo info = default)
         {
-            if (!Runner.IsServer) return;
-            // (maintain original behavior)
+            if (!Runner.IsServer)
+            {
+                Debug.Log("[RPC_RequestPlaceTower] Not running on server - ignoring.");
+                return;
+            }
+
             var src = info.Source;
-            var playerObj = Runner.GetPlayerObject(src);
+            NetworkObject playerObj = null;
+            try
+            {
+                playerObj = Runner.GetPlayerObject(src);
+            }
+            catch { playerObj = null; }
+
+            if (playerObj == null)
+            {
+            try
+            {
+            if (Networking.FusionNetworkManager.PlayerObjects != null)
+            {
+                Networking.FusionNetworkManager.PlayerObjects.TryGetValue(src, out playerObj);
+            }
+            }
+            catch { }
+            }
+
             var pn = playerObj != null ? playerObj.GetComponent<PlayerNetwork>() : null;
-            if (pn == null) return;
+            if (pn == null)
+            {
+                Debug.LogWarning("[RPC_RequestPlaceTower] sender has no PlayerNetwork or playerObj is null");
+                return;
+            }
 
             if (pn.Team != 0)
             {
@@ -455,11 +481,50 @@ namespace Networking
                 Debug.Log($"[RPC_RequestPlaceTower] denied: not enough money ({pn.Money} < {cost})");
                 return;
             }
-
+            
             pn.Money -= cost;
-            GamePlayManager.Instance.PlaceTowerAtSpot(towerIndex, spotId, pn.Team, src);
+            Debug.Log($"[RPC_RequestPlaceTower] ENTER (server? {Runner != null && Runner.IsServer}) from {src} towerIndex={towerIndex} spotId={spotId} GamePlayManager.Instance={(GamePlayManager.Instance!=null?"OK":"NULL")}");
 
-            Debug.Log($"[RPC_RequestPlaceTower] placed tower {towerIndex} at spot {spotId} for player {src}. Money left: {pn.Money}");
+            try
+            {
+            if (GamePlayManager.Instance != null)
+            {
+                Debug.Log($"[RPC_RequestPlaceTower] About to call GamePlayManager.PlaceTowerAtSpot (instance name='{GamePlayManager.Instance.gameObject.name}')");
+                GamePlayManager.Instance.PlaceTowerAtSpot(towerIndex, spotId, pn.Team, src);
+                Debug.Log("[RPC_RequestPlaceTower] Returned from PlaceTowerAtSpot call.");
+            }
+            else
+            {
+                Debug.LogWarning("[RPC_RequestPlaceTower] GamePlayManager.Instance was NULL at call time (unexpected). Cannot place tower.");
+            }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[RPC_RequestPlaceTower] Exception when calling PlaceTowerAtSpot: {ex}");
+            }
+
+
+            Debug.Log("[BuildMenu] Closed (RPC_RequestPlaceTower flow end)");
+
+            if (GamePlayManager.Instance != null)
+            {
+                Debug.Log("[RPC_RequestPlaceTower] ENTER (server? " + Runner.IsServer + ") from " + src + " towerIndex=" + towerIndex + " spotId=" + spotId + " GamePlayManager.Instance=OK");
+                GamePlayManager.Instance.PlaceTowerAtSpot(towerIndex, spotId, pn.Team, src);
+            }
+            else
+            {
+                Debug.LogWarning("[RPC_RequestPlaceTower] GamePlayManager.Instance is null — attempting fallback spawn");
+                var gm = FindObjectOfType<GamePlayManager>();
+                if (gm != null)
+                {
+                    Debug.Log($"[RPC_RequestPlaceTower] ENTER (server? {Runner.IsServer}) from {info.Source} towerIndex={towerIndex} spotId={spotId} GamePlayManager.Instance={(GamePlayManager.Instance!=null?"OK":"NULL")}");
+                    gm.PlaceTowerAtSpot(towerIndex, spotId, pn.Team, src);
+                }
+                else
+                {
+                    Debug.LogError("[RPC_RequestPlaceTower] Fallback failed: no GamePlayManager found");
+                }
+            }
         }
 
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]

@@ -8,23 +8,22 @@ namespace UI
     public class BuildMenuManager : MonoBehaviour
     {
         [Header("UI")]
-        public GameObject rootPanel;       // panel GameObject that contains the build menu UI (should be inactive by default)
-        public Button[] towerButtons;      // buttons for each tower type (assign in inspector)
-        public Image[] greyMasks;          // optional overlay images (same length as towerButtons). Active = NOT affordable.
+        public GameObject rootPanel;
+        public Button[] towerButtons;
+        public Image[] greyMasks;
 
         [Header("Tower config")]
-        public int[] towerIndices;         // map button index -> tower prefab index in GamePlayManager.towerPrefabs
-        public int[] towerCosts;           // optional local costs (fallback if GamePlayManager isn't available)
+        public int[] towerIndices;
+        public int[] towerCosts;
 
         [Header("Debug")]
-        public bool logAffordability = true;   // set to true to log money/costs periodically
+        public bool logAffordability = true;
 
         int currentSpotId = -1;
         int frameCounter = 0;
 
         void Reset()
         {
-            // convenience: if not set, use this GameObject as root
             if (rootPanel == null)
                 rootPanel = this.gameObject;
         }
@@ -60,12 +59,10 @@ namespace UI
 
         void Update()
         {
-            // only update affordability if panel exists (even when hidden - useful to keep masks correct)
             UpdateAffordability();
 
-            // periodic debug logging
             frameCounter++;
-            if (logAffordability && frameCounter % 60 == 0) // roughly once per second at 60fps
+            if (logAffordability && frameCounter % 60 == 0)
             {
                 var local = Networking.PlayerNetwork.Local;
                 int money = (local != null) ? local.Money : -999;
@@ -99,7 +96,6 @@ namespace UI
 
                 bool affordable = (money >= cost);
 
-                // set interactable
                 towerButtons[i].interactable = affordable;
 
                 // set grey mask (if provided) - active when NOT affordable
@@ -108,7 +104,6 @@ namespace UI
                     greyMasks[i].gameObject.SetActive(!affordable);
                 }
 
-                // optional visual color change to button
                 try
                 {
                     var colors = towerButtons[i].colors;
@@ -149,10 +144,8 @@ namespace UI
                 catch { }
             }
 
-            // Force UI rebuild/update (helps when canvas was just enabled)
             Canvas.ForceUpdateCanvases();
 
-            // Debug info about canvas
             Debug.Log($"[BuildMenu] Opened for spot {spotId} (root active={rootPanel.activeSelf}) canvas={(canvas!=null?canvas.name:"none")} renderMode={(canvas!=null?canvas.renderMode.ToString():"-")}, sorting={ (canvas!=null?canvas.sortingOrder:0) }");
 
             UpdateAffordability();
@@ -169,10 +162,45 @@ namespace UI
 
         void OnTowerButtonClicked(int buttonIndex)
         {
+            Debug.Log($"[BuildMenu] OnTowerButtonClicked idx={buttonIndex} currentSpot={currentSpotId}");
+
             var local = Networking.PlayerNetwork.Local;
+
             if (local == null)
             {
-                Debug.LogWarning("[BuildMenu] No local player found.");
+                var pns = FindObjectsOfType<Networking.PlayerNetwork>();
+                foreach (var pn in pns)
+                {
+                    if (pn == null) continue;
+                    if (pn.Object != null && pn.Object.HasInputAuthority)
+                    {
+                        local = pn;
+                        Debug.Log("[BuildMenu] Fallback: found local PN via HasInputAuthority.");
+                        break;
+                    }
+                }
+            }
+
+            if (local == null)
+            {
+                var allPns = FindObjectsOfType<Networking.PlayerNetwork>();
+                foreach (var pn in allPns)
+                {
+                    if (pn == null) continue;
+                    try {
+                        if (pn.Object != null && pn.Object.HasInputAuthority)
+                        {
+                            local = pn;
+                            Debug.Log("[BuildMenu] Second fallback: selected PN with HasInputAuthority.");
+                            break;
+                        }
+                    } catch { }
+                }
+            }
+
+            if (local == null)
+            {
+                Debug.LogWarning("[BuildMenu] No local player found. Cannot place tower.");
                 return;
             }
 
@@ -189,12 +217,13 @@ namespace UI
             }
 
             int towerIndex = (towerIndices != null && buttonIndex < towerIndices.Length) ? towerIndices[buttonIndex] : buttonIndex;
-
             int cost = int.MaxValue;
             if (GamePlayManager.Instance != null)
                 cost = GamePlayManager.Instance.GetTowerCost(towerIndex);
-            else if (towerCosts != null && buttonIndex < towerCosts.Length)
-                cost = towerCosts[buttonIndex];
+            else
+                Debug.LogWarning("[BuildMenu] GamePlayManager.Instance is NULL when clicking tower button.");
+
+            Debug.Log($"[BuildMenu] Attempting place tower {towerIndex} at spot {currentSpotId}. PlayerMoney={local.Money}, Cost={cost}");
 
             if (local.Money < cost)
             {
@@ -202,13 +231,19 @@ namespace UI
                 return;
             }
 
-            // send RPC to request tower placement on server
-            Debug.Log($"[BuildMenu] Requesting place tower {towerIndex} at spot {currentSpotId} (cost {cost}). PlayerMoneyBefore={local.Money}");
-            local.RPC_RequestPlaceTower(towerIndex, currentSpotId);
+            try
+            {
+                local.RPC_RequestPlaceTower(towerIndex, currentSpotId);
+                Debug.Log("[BuildMenu] RPC_RequestPlaceTower invoked.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[BuildMenu] RPC_RequestPlaceTower threw: " + ex.Message);
+            }
 
-            // close menu locally (optional UX)
             Close();
         }
+
 
         string GetCostsString()
         {

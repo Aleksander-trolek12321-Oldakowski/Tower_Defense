@@ -19,6 +19,10 @@ public class EnemyAI : NetworkBehaviour
     private int currentWaypointIndex = 0;
     private bool reachedEnd = false;
 
+    // --- NEW: obsługa gałęzi w PathManagerze ---
+    private PathManager currentPath;
+    private bool waitingForBranchChoice = false;
+
     [Header("Visuals")]
     public GameObject visualsRoot;
     public SpriteRenderer spriteRenderer;
@@ -81,7 +85,6 @@ public class EnemyAI : NetworkBehaviour
         }
     }
 
-
     IEnumerator GhostCycleCoroutine()
     {
         while (true)
@@ -133,19 +136,22 @@ public class EnemyAI : NetworkBehaviour
     public void SetPath(PathManager manager)
     {
         path = manager;
+        currentPath = manager;            // NEW
         currentWaypointIndex = 0;
         reachedEnd = false;
-        if (path != null && path.GetWaypoint(0) != null)
+        waitingForBranchChoice = false;   // NEW
+
+        if (currentPath != null && currentPath.GetWaypoint(0) != null)
         {
             if (Runner != null && Runner.IsServer)
             {
-                Vector3 startPos = path.GetWaypoint(0).position;
+                Vector3 startPos = currentPath.GetWaypoint(0).position;
                 transform.position = startPos;
                 NetworkedPosition = (Vector2)startPos;
             }
             else
             {
-                transform.position = path.GetWaypoint(0).position;
+                transform.position = currentPath.GetWaypoint(0).position;
             }
         }
     }
@@ -168,13 +174,38 @@ public class EnemyAI : NetworkBehaviour
         }
 
         ApplySpriteFromIndex();
-    }   
+    }
+
+    // --- NEW: wybór konkretnej gałęzi dla TEGO moba ---
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_SetBranch(int branchIndex)
+    {
+        if (!Runner.IsServer) return;
+        if (currentPath == null) return;
+        if (!currentPath.HasBranches) return;
+
+        var newBranch = currentPath.GetBranch(branchIndex);
+        if (newBranch == null) return;
+
+        currentPath = newBranch;
+        currentWaypointIndex = 0;
+        reachedEnd = false;
+        waitingForBranchChoice = false;
+
+        var wp0 = currentPath.GetWaypoint(0);
+        if (wp0 != null)
+        {
+            Vector2 startPos = wp0.position;
+            rb.position = startPos;
+            NetworkedPosition = startPos;
+        }
+    }
 
     private void MoveOnServer()
     {
-        if (path == null || reachedEnd) return;
+        if (currentPath == null || reachedEnd || waitingForBranchChoice) return;
 
-        var waypoint = path.GetWaypoint(currentWaypointIndex);
+        var waypoint = currentPath.GetWaypoint(currentWaypointIndex);
         if (waypoint == null) return;
 
         Vector2 dir = ((Vector2)waypoint.position - rb.position);
@@ -184,11 +215,28 @@ public class EnemyAI : NetworkBehaviour
         {
             currentWaypointIndex++;
 
-            if (currentWaypointIndex >= path.GetWaypointCount())
+            // koniec obecnej ścieżki
+            if (currentWaypointIndex >= currentPath.GetWaypointCount())
             {
+                // jeśli są gałęzie – zatrzymaj się i czekaj na wybór z UI
+                if (currentPath.HasBranches)
+                {
+                    waitingForBranchChoice = true;
+
+                    PathBranchUI.ShowForEnemy(this, currentPath);
+
+                    return;
+                }
+
+                // brak gałęzi – koniec drogi
                 reachedEnd = true;
                 return;
             }
+
+            waypoint = currentPath.GetWaypoint(currentWaypointIndex);
+            if (waypoint == null) return;
+
+            dir = ((Vector2)waypoint.position - rb.position);
         }
 
         dir.Normalize();

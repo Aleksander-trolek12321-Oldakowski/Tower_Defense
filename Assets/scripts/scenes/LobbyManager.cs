@@ -16,7 +16,7 @@ namespace Networking
 
         // countdown
         private Coroutine countdownCoroutine;
-        private int countdownSeconds = 15;
+        private int countdownSeconds = 3;
         private bool countdownRunning = false;
 
         [Header("Scene to load for match")]

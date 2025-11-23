@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
@@ -10,12 +11,16 @@ namespace Networking
         public static GamePlayManager Instance;
 
         [Header("Networked Prefabs (register these in NetworkProjectConfig)")]
-        public NetworkObject[] unitPrefabs;   // index -> prefab for units (attacker)
-        public NetworkObject[] towerPrefabs;  // index -> prefab for towers (defender)
+        public NetworkObject[] unitPrefabs;
+        public NetworkObject[] towerPrefabs;
 
         [Header("Ability network prefabs (register in NetworkProjectConfig)")]
         public NetworkObject fireballNetworkPrefab;
         public NetworkObject freezeAreaNetworkPrefab;
+
+        [Header("Tower projectiles")]
+        public NetworkObject archerProjectilePrefab;
+        public NetworkObject cannonProjectilePrefab;
 
         [Header("Build spots (scene Transforms)")]
         public Transform[] towerSpots;
@@ -31,6 +36,7 @@ namespace Networking
         public int[] towerCosts;
 
         public Sprite[] enemyTypeSprites;
+
 
         [Networked] public bool MatchStarted { get; set; } = false;
 
@@ -126,41 +132,76 @@ namespace Networking
 
         public void PlaceTowerAtSpot(int towerIndex, int spotId, int team, PlayerRef requester)
         {
-            if (!Runner.IsServer) return;
-
-            if (towerPrefabs == null || towerIndex < 0 || towerIndex >= towerPrefabs.Length)
+            if (Runner == null)
             {
-                Debug.LogWarning($"[GamePlayManager] PlaceTowerAtSpot invalid towerIndex {towerIndex}");
+                Debug.LogError("[GamePlayManager.PlaceTowerAtSpot] Runner is NULL! Cannot spawn tower.");
+                return;
+            }
+            if (!Runner.IsServer)
+            {
+                Debug.LogWarning("[GamePlayManager.PlaceTowerAtSpot] Called on non-server runner. Ignoring. Runner.IsServer=" + Runner.IsServer);
+                return;
+            }
+
+            Debug.Log($"[GamePlayManager.PlaceTowerAtSpot] ENTER (server? {Runner.IsServer}) towerIndex={towerIndex} spotId={spotId} team={team} requester={requester}");
+
+            if (towerPrefabs == null)
+            {
+                Debug.LogError("[GamePlayManager.PlaceTowerAtSpot] towerPrefabs array is NULL!");
+                return;
+            }
+            if (towerIndex < 0 || towerIndex >= towerPrefabs.Length)
+            {
+                Debug.LogError($"[GamePlayManager.PlaceTowerAtSpot] invalid towerIndex {towerIndex}");
+                return;
+            }
+            var prefab = towerPrefabs[towerIndex];
+            if (prefab == null)
+            {
+                Debug.LogError($"[GamePlayManager.PlaceTowerAtSpot] towerPrefabs[{towerIndex}] is NULL (did you assign network prefab in inspector and register it in NetworkProjectConfig?)");
                 return;
             }
 
             if (towerSpots == null || spotId < 0 || spotId >= towerSpots.Length)
             {
-                Debug.LogWarning($"[GamePlayManager] PlaceTowerAtSpot invalid spotId {spotId}");
+                Debug.LogError($"[GamePlayManager.PlaceTowerAtSpot] invalid spotId {spotId}");
                 return;
             }
 
-            if (!spotOccupied.ContainsKey(spotId))
-                spotOccupied[spotId] = false;
-
+            if (!spotOccupied.ContainsKey(spotId)) spotOccupied[spotId] = false;
             if (spotOccupied[spotId])
             {
-                Debug.Log($"[GamePlayManager] Spot {spotId} already occupied - cannot place tower.");
+                Debug.Log($"[GamePlayManager.PlaceTowerAtSpot] Spot {spotId} already occupied - skipping.");
                 return;
             }
 
             Vector3 pos = towerSpots[spotId].position;
-            var no = Runner.Spawn(towerPrefabs[towerIndex], pos, Quaternion.identity, PlayerRef.None);
-            var tw = no.GetComponent<TowerNetwork>();
-            if (tw != null) tw.OwnerTeam = team;
 
-            var tv = no.GetComponent<TeamVisibility>();
-            if (tv != null) tv.UpdateVisibility();
+            try
+            {
+                Debug.Log($"[GamePlayManager.PlaceTowerAtSpot] Spawning prefab {prefab.name} at {pos}");
+                var no = Runner.Spawn(prefab, pos, Quaternion.identity, PlayerRef.None);
+                if (no == null)
+                {
+                    Debug.LogError("[GamePlayManager.PlaceTowerAtSpot] Runner.Spawn returned NULL (spawn failed).");
+                    return;
+                }
 
-            spotOccupied[spotId] = true;
+                var tw = no.GetComponent<TowerNetwork>();
+                if (tw != null) tw.OwnerTeam = team;
 
-            Debug.Log($"[GamePlayManager] Placed tower idx={towerIndex} at spot {spotId} for team={team} (by {requester})");
+                var tv = no.GetComponent<TeamVisibility>();
+                if (tv != null) tv.UpdateVisibility();
+
+                spotOccupied[spotId] = true;
+                Debug.Log($"[GamePlayManager.PlaceTowerAtSpot] Placed tower idx={towerIndex} at spot {spotId} for team={team} (by {requester}) - spawn succeeded.");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError("[GamePlayManager.PlaceTowerAtSpot] Runner.Spawn threw exception: " + ex.Message + "\n" + ex.StackTrace);
+            }
         }
+
 
         public int GetUnitCost(int unitIndex)
         {
@@ -172,6 +213,37 @@ namespace Networking
         {
             if (towerCosts == null || towerIndex < 0 || towerIndex >= towerCosts.Length) return int.MaxValue;
             return towerCosts[towerIndex];
+        }
+
+        public void ApplyFreezeToUnitsInRadius(Vector2 pos, float radius, float duration)
+        {
+            if (!Runner || !Runner.IsServer) return;
+
+            Collider2D[] hits = Physics2D.OverlapCircleAll(pos, radius);
+            List<EnemyAI> frozen = new List<EnemyAI>();
+            foreach (var hit in hits)
+            {
+                if (!hit.CompareTag("Unit")) continue;
+                var ai = hit.GetComponent<EnemyAI>();
+                if (ai == null) continue;
+                ai.IsFrozen = true; // networked -> replicuje
+                frozen.Add(ai);
+                Debug.Log($"[GamePlayManager] Freeze applied to {ai.name}");
+            }
+
+            if (frozen.Count > 0)
+                StartCoroutine(UnfreezeAfterCoroutine(frozen.ToArray(), duration));
+        }
+
+        IEnumerator UnfreezeAfterCoroutine(EnemyAI[] ais, float dur)
+        {
+            yield return new WaitForSeconds(dur);
+            foreach (var ai in ais)
+            {
+                if (ai == null) continue;
+                ai.IsFrozen = false;
+                Debug.Log($"[GamePlayManager] Freeze removed from {ai.name}");
+            }
         }
 
         public void OnPlayerLeft(PlayerRef player)
@@ -310,7 +382,7 @@ namespace Networking
             }
         }
 
-        System.Collections.IEnumerator UnfreezeTurretAfter(GameObject turret, float d)
+        IEnumerator UnfreezeTurretAfter(GameObject turret, float d)
         {
             yield return new WaitForSeconds(d);
             if (turret == null) yield break;
@@ -343,7 +415,7 @@ namespace Networking
             StartCoroutine(RestoreFrozenUnitsAfter(hits, duration));
         }
 
-        System.Collections.IEnumerator RestoreFrozenUnitsAfter(Collider2D[] hits, float duration)
+        IEnumerator RestoreFrozenUnitsAfter(Collider2D[] hits, float duration)
         {
             yield return new WaitForSeconds(duration);
             foreach (var hit in hits)
@@ -359,7 +431,7 @@ namespace Networking
             }
         }
 
-        System.Collections.IEnumerator CastDamageBoostCoroutine(int team, float multiplier, float dur)
+        IEnumerator CastDamageBoostCoroutine(int team, float multiplier, float dur)
         {
             Debug.Log($"[GamePlayManager] Server: applying DamageBoost x{multiplier} to team {team} for {dur}s");
             GameObject[] units = GameObject.FindGameObjectsWithTag("Unit");
@@ -375,7 +447,7 @@ namespace Networking
         }
         void StartCoroutine_CastDamageBoost(int team, float multiplier, float dur) => StartCoroutine(CastDamageBoostCoroutine(team, multiplier, dur));
 
-        System.Collections.IEnumerator CastSpeedBoostCoroutine(int team, float multiplier, float dur)
+        IEnumerator CastSpeedBoostCoroutine(int team, float multiplier, float dur)
         {
             Debug.Log($"[GamePlayManager] Server: applying SpeedBoost x{multiplier} to team {team} for {dur}s");
             GameObject[] units = GameObject.FindGameObjectsWithTag("Unit");
@@ -385,7 +457,7 @@ namespace Networking
         }
         void StartCoroutine_CastSpeedBoost(int team, float multiplier, float dur) => StartCoroutine(CastSpeedBoostCoroutine(team, multiplier, dur));
 
-        System.Collections.IEnumerator CastTurretBoostCoroutine(int team, float multiplier, float dur)
+        IEnumerator CastTurretBoostCoroutine(int team, float multiplier, float dur)
         {
             Debug.Log($"[GamePlayManager] Server: applying TurretBoost x{multiplier} to team {team} for {dur}s");
             GameObject[] turrets = GameObject.FindGameObjectsWithTag("Turret");

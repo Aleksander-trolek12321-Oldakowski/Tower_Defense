@@ -68,10 +68,6 @@ MonoBehaviour:
   - {fileID: 8455566256650108374, guid: 6b176929253ec29418d0d9396e81c942, type: 3}
   towerPrefabs:
   - {fileID: 7285382449032838958, guid: e14dbe20c82a21e4ba7aee840e2ae4e9, type: 3}
-  fireballNetworkPrefab: {fileID: 0}
-  freezeAreaNetworkPrefab: {fileID: 0}
-  archerProjectilePrefab: {fileID: 0}
-  cannonProjectilePrefab: {fileID: 0}
   towerSpots:
   - {fileID: 7997746939229047014, guid: 022047a8e5071a646a00c6bb6b35b440, type: 3}
   - {fileID: 2778707777401597405, guid: 6aeb3028f1c7626458fb7ba6bb8b7844, type: 3}
@@ -80,6 +76,4 @@ MonoBehaviour:
   initialUnitsPerSpawnPoint: 
   unitCosts: 
   towerCosts: 
-  enemyTypeSprites: []
   _MatchStarted: 0
-  _SelectedBranchIndex: 0

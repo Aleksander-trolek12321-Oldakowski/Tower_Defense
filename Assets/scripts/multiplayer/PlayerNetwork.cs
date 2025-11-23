@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
@@ -142,7 +141,7 @@ namespace Networking
             Debug.Log("[PlayerNetwork] Despawned.");
         }
 
-        private IEnumerator DelayedJoinLobbyCoroutine()
+        private System.Collections.IEnumerator DelayedJoinLobbyCoroutine()
         {
             
             yield return new WaitForSeconds(0.1f);
@@ -437,104 +436,31 @@ namespace Networking
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
         public void RPC_RequestPlaceTower(int towerIndex, int spotId, RpcInfo info = default)
         {
-            Debug.Log($"[RPC_RequestPlaceTower] ENTER (server? {(Runner!=null?Runner.IsServer:false)}) from {info.Source} towerIndex={towerIndex} spotId={spotId} GamePlayManager.Instance={(GamePlayManager.Instance!=null?"OK":"NULL")}");
-
             if (!Runner.IsServer) return;
-
+            // (maintain original behavior)
             var src = info.Source;
-            NetworkObject playerObj = null;
+            var playerObj = Runner.GetPlayerObject(src);
+            var pn = playerObj != null ? playerObj.GetComponent<PlayerNetwork>() : null;
+            if (pn == null) return;
 
-            try
-            {
-                playerObj = Runner.GetPlayerObject(src);
-            }
-            catch { playerObj = null; }
-
-            if (playerObj == null)
-            {
-                try
-                {
-                    if (Networking.FusionNetworkManager.PlayerObjects != null)
-                    {
-                        Networking.FusionNetworkManager.PlayerObjects.TryGetValue(src, out playerObj);
-                    }
-                }
-                catch { playerObj = null; }
-            }
-
-            if (playerObj == null)
-            {
-                var allPns = FindObjectsOfType<PlayerNetwork>();
-                foreach (var pn in allPns)
-                {
-                    if (pn == null) continue;
-                    try
-                    {
-                        if (pn.Object != null)
-                        {
-                            if (pn.Object.InputAuthority == src)
-                            {
-                                playerObj = pn.Object;
-                                Debug.Log($"[RPC_RequestPlaceTower] Found playerObj via FindObjectsOfType (InputAuthority match) -> {pn.gameObject.name}");
-                                break;
-                            }
-                        }
-                    }
-                    catch { /* ignore reflection */ }
-                }
-            }
-
-            if (playerObj == null)
-            {
-                var allPns = FindObjectsOfType<PlayerNetwork>();
-                foreach (var pn in allPns)
-                {
-                    if (pn == null) continue;
-                    try
-                    {
-                        if (pn.Object != null && pn.Object.HasInputAuthority)
-                        {
-                            playerObj = pn.Object;
-                            Debug.Log($"[RPC_RequestPlaceTower] Fallback found playerObj via HasInputAuthority -> {pn.gameObject.name}");
-                            break;
-                        }
-                    }
-                    catch { }
-                }
-            }
-
-            if (playerObj == null)
-            {
-                Debug.LogWarning("[RPC_RequestPlaceTower] sender has no PlayerNetwork or playerObj is null");
-                return;
-            }
-
-            var pnComp = playerObj.GetComponent<PlayerNetwork>();
-            if (pnComp == null)
-            {
-                Debug.LogWarning("[RPC_RequestPlaceTower] found object has no PlayerNetwork component.");
-                return;
-            }
-
-            if (pnComp.Team != 0)
+            if (pn.Team != 0)
             {
                 Debug.Log("[RPC_RequestPlaceTower] denied: not defender");
                 return;
             }
 
             int cost = GamePlayManager.Instance != null ? GamePlayManager.Instance.GetTowerCost(towerIndex) : int.MaxValue;
-            if (pnComp.Money < cost)
+            if (pn.Money < cost)
             {
-                Debug.Log($"[RPC_RequestPlaceTower] denied: not enough money ({pnComp.Money} < {cost})");
+                Debug.Log($"[RPC_RequestPlaceTower] denied: not enough money ({pn.Money} < {cost})");
                 return;
             }
 
-            pnComp.Money -= cost;
-            GamePlayManager.Instance.PlaceTowerAtSpot(towerIndex, spotId, pnComp.Team, src);
+            pn.Money -= cost;
+            GamePlayManager.Instance.PlaceTowerAtSpot(towerIndex, spotId, pn.Team, src);
 
-            Debug.Log($"[RPC_RequestPlaceTower] placed tower {towerIndex} at spot {spotId} for player {src}. Money left: {pnComp.Money}");
+            Debug.Log($"[RPC_RequestPlaceTower] placed tower {towerIndex} at spot {spotId} for player {src}. Money left: {pn.Money}");
         }
-
 
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
         public void RPC_RequestUseAbility(int abilityId, Vector2 worldPos, RpcInfo info = default)

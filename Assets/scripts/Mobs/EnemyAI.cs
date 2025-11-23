@@ -11,12 +11,8 @@ public class EnemyAI : NetworkBehaviour
     [Networked] public EnemyType Type { get; set; }
 
     [Networked] public Vector2 NetworkedPosition { get; set; }
-
     [Networked] public int SpriteIndex { get; set; } = 0;
-
     [Networked] public bool GhostVisible { get; set; } = true;
-
-    [Networked] public bool IsFrozen { get; set; } = false;
 
     private Rigidbody2D rb;
     private PathManager path;
@@ -26,7 +22,6 @@ public class EnemyAI : NetworkBehaviour
     // --- NEW: obsługa gałęzi w PathManagerze ---
     private PathManager currentPath;
     private bool waitingForBranchChoice = false;
-    float originalSpeed = -1f;
 
     [Header("Visuals")]
     public GameObject visualsRoot;
@@ -36,33 +31,21 @@ public class EnemyAI : NetworkBehaviour
 
     public override void Spawned()
     {
-        base.Spawned();
-
         rb = GetComponent<Rigidbody2D>();
         if (rb != null)
         {
             rb.gravityScale = 0f;
             rb.constraints = RigidbodyConstraints2D.FreezeRotation;
-            // keep server authoritative physics: clients do interpolation, server moves
             rb.isKinematic = !Runner.IsServer;
         }
 
-        if (spriteRenderer == null && visualsRoot != null)
-        {
-            spriteRenderer = visualsRoot.GetComponent<SpriteRenderer>();
-            if (spriteRenderer == null)
-                spriteRenderer = GetComponent<SpriteRenderer>();
-        }
-        else if (spriteRenderer == null)
-        {
-            spriteRenderer = GetComponent<SpriteRenderer>();
-        }
-
-        //start ghost cycle on server (which toggles GhostVisible networked)
         if (Runner != null && Runner.IsServer && Type == EnemyType.Ghost)
         {
             StartCoroutine(GhostCycleCoroutine());
         }
+
+        if (spriteRenderer == null)
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
         ApplySpriteFromIndex();
 
@@ -73,9 +56,6 @@ public class EnemyAI : NetworkBehaviour
     public void InitStats(EnemyType type)
     {
         Type = type;
-
-        SpriteIndex = (int)type;
-
         switch (type)
         {
             case EnemyType.Werewolf:
@@ -90,18 +70,12 @@ public class EnemyAI : NetworkBehaviour
             case EnemyType.Ghost:
                 HP = 1f; Speed = 8f; Attack = 1f;
                 break;
-            default:
-                HP = 3f; Speed = 2f; Attack = 1f;
-                break;
         }
-
-        ApplySpriteFromIndex();
     }
 
     void ApplySpriteFromIndex()
     {
         if (spriteRenderer == null) return;
-
         var mgr = Networking.GamePlayManager.Instance;
         if (mgr != null && mgr.enemyTypeSprites != null && SpriteIndex >= 0 && SpriteIndex < mgr.enemyTypeSprites.Length)
         {
@@ -109,43 +83,45 @@ public class EnemyAI : NetworkBehaviour
             if (s != null)
                 spriteRenderer.sprite = s;
         }
-        else
-        {
-            if (typeSprites != null && SpriteIndex >= 0 && SpriteIndex < typeSprites.Length)
-            {
-                spriteRenderer.sprite = typeSprites[SpriteIndex];
-            }
-        }
-
-        if (Type == EnemyType.Ghost)
-        {
-            spriteRenderer.enabled = GhostVisible;
-        }
-        else
-        {
-            spriteRenderer.enabled = true;
-        }
-
-
-        if (IsFrozen)
-        {
-            spriteRenderer.color = new Color(0.65f, 0.8f, 1f, 1f);
-        }
-        else
-        {
-            spriteRenderer.color = Color.white;
-        }
     }
 
     IEnumerator GhostCycleCoroutine()
     {
         while (true)
         {
+
             GhostVisible = true;
             yield return new WaitForSeconds(3f);
             GhostVisible = false;
             yield return new WaitForSeconds(4f);
         }
+    }
+
+    int GetLocalPlayerTeam()
+    {
+        var localPn = Networking.PlayerNetwork.Local;
+        if (localPn != null) return localPn.Team;
+
+        // fallback scanning
+        var pns = FindObjectsOfType<MonoBehaviour>();
+        foreach (var mb in pns)
+        {
+            var t = mb.GetType();
+            if (t.Name == "PlayerNetwork")
+            {
+                var prop = t.GetProperty("Team");
+                if (prop != null)
+                {
+                    try
+                    {
+                        var val = prop.GetValue(mb);
+                        if (val is int) return (int)val;
+                    }
+                    catch { }
+                }
+            }
+        }
+        return -1;
     }
 
     public void SetInitialNetworkPosition(Vector2 pos)
@@ -154,7 +130,6 @@ public class EnemyAI : NetworkBehaviour
         {
             NetworkedPosition = pos;
             transform.position = pos;
-            ApplySpriteFromIndex();
         }
     }
 
@@ -183,8 +158,6 @@ public class EnemyAI : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
-        base.FixedUpdateNetwork();
-
         if (Runner != null && Runner.IsServer)
         {
             MoveOnServer();
@@ -230,9 +203,7 @@ public class EnemyAI : NetworkBehaviour
 
     private void MoveOnServer()
     {
-        if (IsFrozen) return;
-
-        if (path == null || reachedEnd) return;
+        if (currentPath == null || reachedEnd || waitingForBranchChoice) return;
 
         var waypoint = currentPath.GetWaypoint(currentWaypointIndex);
         if (waypoint == null) return;

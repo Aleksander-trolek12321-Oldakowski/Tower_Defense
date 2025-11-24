@@ -22,9 +22,6 @@ public class PathManager : MonoBehaviour
         return branches[index];
     }
 
-    // NEW: dla UI, żeby wiedziało ile jest branchy
-    public int GetBranchCountSafe() => branches.Count;
-
 #if UNITY_EDITOR
     private void OnDrawGizmos()
     {

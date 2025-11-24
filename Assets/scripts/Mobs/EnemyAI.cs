@@ -9,23 +9,17 @@ public class EnemyAI : NetworkBehaviour
     [Networked] public float Speed { get; set; }
     [Networked] public float Attack { get; set; }
     [Networked] public EnemyType Type { get; set; }
+    [Networked] public bool IsFrozen { get; set; }
 
     [Networked] public Vector2 NetworkedPosition { get; set; }
-
     [Networked] public int SpriteIndex { get; set; } = 0;
-
     [Networked] public bool GhostVisible { get; set; } = true;
-
-    [Networked] public bool IsFrozen { get; set; } = false;
 
     private Rigidbody2D rb;
     private PathManager path;
     private int currentWaypointIndex = 0;
     private bool reachedEnd = false;
 
-    float originalSpeed = -1f;
-
-    // --- NEW: obsługa gałęzi w PathManagerze ---
     private PathManager currentPath;
     private bool waitingForBranchChoice = false;
 
@@ -37,33 +31,21 @@ public class EnemyAI : NetworkBehaviour
 
     public override void Spawned()
     {
-        base.Spawned();
-
         rb = GetComponent<Rigidbody2D>();
         if (rb != null)
         {
             rb.gravityScale = 0f;
             rb.constraints = RigidbodyConstraints2D.FreezeRotation;
-            // keep server authoritative physics: clients do interpolation, server moves
             rb.isKinematic = !Runner.IsServer;
         }
 
-        if (spriteRenderer == null && visualsRoot != null)
-        {
-            spriteRenderer = visualsRoot.GetComponent<SpriteRenderer>();
-            if (spriteRenderer == null)
-                spriteRenderer = GetComponent<SpriteRenderer>();
-        }
-        else if (spriteRenderer == null)
-        {
-            spriteRenderer = GetComponent<SpriteRenderer>();
-        }
-
-        //start ghost cycle on server (which toggles GhostVisible networked)
         if (Runner != null && Runner.IsServer && Type == EnemyType.Ghost)
         {
             StartCoroutine(GhostCycleCoroutine());
         }
+
+        if (spriteRenderer == null)
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
         ApplySpriteFromIndex();
 
@@ -74,9 +56,6 @@ public class EnemyAI : NetworkBehaviour
     public void InitStats(EnemyType type)
     {
         Type = type;
-
-        SpriteIndex = (int)type;
-
         switch (type)
         {
             case EnemyType.Werewolf:
@@ -91,50 +70,18 @@ public class EnemyAI : NetworkBehaviour
             case EnemyType.Ghost:
                 HP = 1f; Speed = 8f; Attack = 1f;
                 break;
-            default:
-                HP = 3f; Speed = 2f; Attack = 1f;
-                break;
         }
-
-        ApplySpriteFromIndex();
     }
 
     void ApplySpriteFromIndex()
     {
         if (spriteRenderer == null) return;
-
         var mgr = Networking.GamePlayManager.Instance;
         if (mgr != null && mgr.enemyTypeSprites != null && SpriteIndex >= 0 && SpriteIndex < mgr.enemyTypeSprites.Length)
         {
             var s = mgr.enemyTypeSprites[SpriteIndex];
             if (s != null)
                 spriteRenderer.sprite = s;
-        }
-        else
-        {
-            if (typeSprites != null && SpriteIndex >= 0 && SpriteIndex < typeSprites.Length)
-            {
-                spriteRenderer.sprite = typeSprites[SpriteIndex];
-            }
-        }
-
-        if (Type == EnemyType.Ghost)
-        {
-            spriteRenderer.enabled = GhostVisible;
-        }
-        else
-        {
-            spriteRenderer.enabled = true;
-        }
-
-
-        if (IsFrozen)
-        {
-            spriteRenderer.color = new Color(0.65f, 0.8f, 1f, 1f);
-        }
-        else
-        {
-            spriteRenderer.color = Color.white;
         }
     }
 
@@ -149,23 +96,48 @@ public class EnemyAI : NetworkBehaviour
         }
     }
 
+    int GetLocalPlayerTeam()
+    {
+        var localPn = Networking.PlayerNetwork.Local;
+        if (localPn != null) return localPn.Team;
+
+        var nbs = FindObjectsOfType<NetworkBehaviour>();
+        foreach (var nb in nbs)
+        {
+            var t = nb.GetType();
+            if (t.Name == "PlayerNetwork")
+            {
+                var prop = t.GetProperty("Team");
+                if (prop != null)
+                {
+                    try
+                    {
+                        var val = prop.GetValue(nb);
+                        if (val is int) return (int)val;
+                    }
+                    catch { }
+                }
+            }
+        }
+        return -1;
+    }
+
     public void SetInitialNetworkPosition(Vector2 pos)
     {
         if (Runner != null && Runner.IsServer)
         {
             NetworkedPosition = pos;
             transform.position = pos;
-            ApplySpriteFromIndex();
         }
     }
 
     public void SetPath(PathManager manager)
     {
         path = manager;
-        currentPath = manager;            // NEW
+        currentPath = manager;
         currentWaypointIndex = 0;
         reachedEnd = false;
-        waitingForBranchChoice = false;   // NEW
+        waitingForBranchChoice = false;
 
         if (currentPath != null && currentPath.GetWaypoint(0) != null)
         {
@@ -184,8 +156,6 @@ public class EnemyAI : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
-        base.FixedUpdateNetwork();
-
         if (Runner != null && Runner.IsServer)
         {
             MoveOnServer();
@@ -204,7 +174,6 @@ public class EnemyAI : NetworkBehaviour
         ApplySpriteFromIndex();
     }
 
-    // --- NEW: wybór konkretnej gałęzi dla TEGO moba ---
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
     public void RPC_SetBranch(int branchIndex)
     {
@@ -231,9 +200,6 @@ public class EnemyAI : NetworkBehaviour
 
     private void MoveOnServer()
     {
-        if (IsFrozen) return;
-
-        if (path == null || reachedEnd) return;
         if (currentPath == null || reachedEnd || waitingForBranchChoice) return;
 
         var waypoint = currentPath.GetWaypoint(currentWaypointIndex);
@@ -241,25 +207,23 @@ public class EnemyAI : NetworkBehaviour
 
         Vector2 dir = ((Vector2)waypoint.position - rb.position);
         float dist = dir.magnitude;
+        if (IsFrozen) return;   
 
+        if (path == null || reachedEnd) return;
         if (dist < 0.1f)
         {
             currentWaypointIndex++;
 
-            // koniec obecnej ścieżki
             if (currentWaypointIndex >= currentPath.GetWaypointCount())
             {
-                // jeśli są gałęzie – zatrzymaj się i czekaj na wybór z UI
                 if (currentPath.HasBranches)
                 {
                     waitingForBranchChoice = true;
 
-                    PathBranchUI.ShowForEnemy(this, currentPath);
-
+                    PathBranchGate.NotifyEnemyArrived(this, currentPath);
                     return;
                 }
 
-                // brak gałęzi – koniec drogi
                 reachedEnd = true;
                 return;
             }
@@ -282,6 +246,8 @@ public class EnemyAI : NetworkBehaviour
         if (!Runner.IsServer) return;
         HP -= dmg;
         if (HP <= 0)
+        {
             Runner.Despawn(Object);
+        }
     }
 }

@@ -25,7 +25,8 @@ public class EnemySpawner : NetworkBehaviour
         if (Runner == null) return;
 
         Vector2 spawnPos = Vector2.zero;
-        if (spawnPoint != null) spawnPos = (Vector2)spawnPoint.position;
+        if (spawnPoint != null) 
+            spawnPos = (Vector2)spawnPoint.position;
 
         int count = 1;
         if (defaultCounts != null && enemyTypeIndex >= 0 && enemyTypeIndex < defaultCounts.Length)
@@ -63,15 +64,19 @@ public class EnemySpawner : NetworkBehaviour
             {
                 if (no.TryGetComponent<EnemyAI>(out var ai))
                 {
+                    // Ustawiamy statystyki
                     ai.InitStats((EnemyType)typeIndex);
+
+                    // KLUCZOWE: ustawiamy początkową ścieżkę (główny PathManager z rozgałęzieniami)
                     ai.SetPath(startPath);
 
+                    // Synchronizacja pozycji startowej po sieci
                     ai.SetInitialNetworkPosition(finalPos);
                 }
 
-
                 var enNet = no.GetComponent<EnemyNetwork>();
                 if (enNet != null) enNet.Team = 1;
+
                 var tv = no.GetComponent<TeamVisibility>();
                 if (tv != null) tv.UpdateVisibility();
             }

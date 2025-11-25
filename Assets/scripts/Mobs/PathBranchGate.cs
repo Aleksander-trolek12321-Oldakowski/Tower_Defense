@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -13,14 +14,24 @@ public class PathBranchGate : MonoBehaviour
     [Tooltip("Index gałęzi w targetPath.branches, którą wybiera ten gate")]
     public int branchIndex = 0;
 
-    private void OnEnable()
-    {
-        RegisterGate();
-    }
+    [Tooltip("Ile sekund po przybyciu enemy jest jeszcze możliwy do reroutu (serwer)")]
+    public float rerouteWindowSeconds = 2.0f;
 
-    private void OnDisable()
+    [Tooltip("GameObject z wizualizacją strzałki (np. Sprite). Będzie widoczny tylko dla teamu atakującego.")]
+    public GameObject visuals;
+
+    private void OnEnable() => RegisterGate();
+    private void OnDisable() => UnregisterGate();
+
+    private void Update()
     {
-        UnregisterGate();
+        var local = Networking.PlayerNetwork.Local;
+        if (visuals != null)
+        {
+            bool shouldShow = (local != null && local.Team == 1);
+            if (visuals.activeSelf != shouldShow)
+                visuals.SetActive(shouldShow);
+        }
     }
 
     private void RegisterGate()
@@ -39,6 +50,8 @@ public class PathBranchGate : MonoBehaviour
 
         if (!list.Contains(this))
             list.Add(this);
+
+        gameObject.SetActive(true);
     }
 
     private void UnregisterGate()
@@ -74,6 +87,21 @@ public class PathBranchGate : MonoBehaviour
                     gate.gameObject.SetActive(true);
             }
         }
+
+        enemy.StartCoroutine(RemoveFromWaitingAfter(enemy, path, enemy.gameObject, gateWait: null, waitSeconds: enemy.GetRerouteWindowSeconds()));
+    }
+
+    private static IEnumerator RemoveFromWaitingAfter(EnemyAI enemy, PathManager path, GameObject dummy, object gateWait, float waitSeconds)
+    {
+        yield return new WaitForSeconds(waitSeconds);
+
+        if (path == null) yield break;
+        if (!waitingEnemiesByPath.TryGetValue(path, out var list)) yield break;
+        if (enemy != null)
+            list.Remove(enemy);
+
+        if (list.Count == 0)
+            HideGatesForPath(path);
     }
 
     public static void NotifyEnemyRemoved(EnemyAI enemy, PathManager path)
@@ -91,12 +119,19 @@ public class PathBranchGate : MonoBehaviour
 
     public void OnGateClicked()
     {
+        var local = Networking.PlayerNetwork.Local;
+        if (local == null || local.Team != 1)
+        {
+            Debug.Log("[PathBranchGate] OnGateClicked ignored: not attacker or no local player.");
+            return;
+        }
+
         if (targetPath == null) return;
 
         if (!waitingEnemiesByPath.TryGetValue(targetPath, out var enemies) || enemies.Count == 0)
             return;
 
-        foreach (var enemy in enemies)
+        foreach (var enemy in enemies.ToArray())
         {
             if (enemy == null) continue;
             enemy.RPC_SetBranch(branchIndex);

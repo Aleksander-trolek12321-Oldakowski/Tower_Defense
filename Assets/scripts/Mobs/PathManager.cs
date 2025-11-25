@@ -22,12 +22,25 @@ public class PathManager : MonoBehaviour
         return branches[index];
     }
 
+    public int GetBranchCount() => branches?.Count ?? 0;
+
+    public int FindWaypointIndexByPosition(Vector2 pos, float eps = 0.01f)
+    {
+        for (int i = 0; i < waypoints.Count; i++)
+        {
+            if (Vector2.SqrMagnitude((Vector2)waypoints[i].position - pos) <= eps * eps)
+                return i;
+        }
+        return -1;
+    }
+
 #if UNITY_EDITOR
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.green;
         for (int i = 0; i < waypoints.Count - 1; i++)
         {
+            if (waypoints[i] == null || waypoints[i + 1] == null) continue;
             Gizmos.DrawLine(waypoints[i].position, waypoints[i + 1].position);
         }
 

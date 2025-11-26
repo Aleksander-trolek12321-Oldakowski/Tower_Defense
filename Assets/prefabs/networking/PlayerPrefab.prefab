@@ -66,11 +66,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c8f4c282270394144a22db5821f4c750, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attackerUIPrefab: {fileID: 1419994277167016956, guid: 56e429a7048b96449893b9fb5fc2bacb, type: 3}
-  defenderUIPrefab: {fileID: 93628314050592127, guid: fbd7bdc955dc90d4ca8287d7e3f00cd8, type: 3}
+  attackerUIPrefab: {fileID: 2275259278380999150, guid: 3899b64b93cf45f4788c40ebc754dae3, type: 3}
+  defenderUIPrefab: {fileID: 6751731231851076765, guid: fbd7bdc955dc90d4ca8287d7e3f00cd8, type: 3}
   waitingUIPrefab: {fileID: 2780509444994113149, guid: 5b3f29fa9ad29394bb10e860f32d771d, type: 3}
-  attackerUI: {fileID: 1419994277167016956, guid: 56e429a7048b96449893b9fb5fc2bacb, type: 3}
-  defenderUI: {fileID: 93628314050592127, guid: fbd7bdc955dc90d4ca8287d7e3f00cd8, type: 3}
+  attackerUI: {fileID: 2275259278380999150, guid: 3899b64b93cf45f4788c40ebc754dae3, type: 3}
+  defenderUI: {fileID: 6751731231851076765, guid: fbd7bdc955dc90d4ca8287d7e3f00cd8, type: 3}
   waitingUI: {fileID: 2780509444994113149, guid: 5b3f29fa9ad29394bb10e860f32d771d, type: 3}
   localCameraPrefab: {fileID: 2793637421958265430, guid: 319efc784f53f1b4bafea429502b38d9, type: 3}
   forceAttachButtonHandlers: 0

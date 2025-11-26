@@ -30,6 +30,17 @@ namespace Controller
         public LayerMask interactableLayerMask = ~0; // which 2D layers to raycast for interactables
         public float tapMaxMovement = 12f;           // max movement allowed to consider a tap
 
+        [Header("Map bounds (optional)")]
+        [Tooltip("Gdy true — granice będą pobierane z mapSprite (world bounds). Jeśli false — użyje manualBounds.")]
+        public bool useMapBounds = true;
+        [Tooltip("SpriteRenderer mapy — przeciągnij obiekt z SpriteRenderer (np. Tilemap -> Sprite)")]
+        public SpriteRenderer mapSprite;
+        [Tooltip("Ręczne granice (w world units), używane gdy useMapBounds=false")]
+        public Rect manualBounds = new Rect(-10, -10, 20, 20);
+
+        // internal computed bounds
+        private Rect mapWorldBounds;
+
         // internal state
         Vector2 panStartScreenPos;
         Vector3 panStartCamPos;
@@ -59,6 +70,13 @@ namespace Controller
             if (cam == null) Debug.LogWarning("[CameraController] No camera assigned or found.");
         }
 
+        void Start()
+        {
+            ComputeMapWorldBounds();
+            // initial clamp (in case scene started outside bounds)
+            ClampCameraPosition();
+        }
+
         void Update()
         {
             if (cam == null) return;
@@ -75,6 +93,30 @@ namespace Controller
 
             // clamp zoom
             cam.orthographicSize = Mathf.Clamp(cam.orthographicSize, minOrthographicSize, maxOrthographicSize);
+
+            // ensure camera position still valid after any zoom changes
+            ClampCameraPosition();
+        }
+
+        // compute world bounds (from sprite or manual)
+        void ComputeMapWorldBounds()
+        {
+            if (useMapBounds && mapSprite != null)
+            {
+                var b = mapSprite.bounds; // world-space bounds
+                mapWorldBounds = new Rect(b.min.x, b.min.y, b.size.x, b.size.y);
+            }
+            else
+            {
+                mapWorldBounds = manualBounds;
+            }
+        }
+
+        // public helper — można wywołać z zewnątrz po edycyjnych zmianach
+        public void RecomputeMapBounds()
+        {
+            ComputeMapWorldBounds();
+            ClampCameraPosition();
         }
 
         // -----------------------
@@ -184,6 +226,10 @@ namespace Controller
                     float delta = curDistance - lastPinchDistance;
                     cam.orthographicSize -= delta * pinchZoomSpeed * (cam.orthographicSize / 5f);
                     lastPinchDistance = curDistance;
+
+                    // clamp and reposition to stay in bounds
+                    cam.orthographicSize = Mathf.Clamp(cam.orthographicSize, minOrthographicSize, maxOrthographicSize);
+                    ClampCameraPosition();
                 }
             }
         }
@@ -200,6 +246,10 @@ namespace Controller
                 if (!UIUtils.IsPointerOverUI())
                 {
                     cam.orthographicSize -= scroll * mouseWheelZoomSpeed * (cam.orthographicSize / 5f);
+                    cam.orthographicSize = Mathf.Clamp(cam.orthographicSize, minOrthographicSize, maxOrthographicSize);
+
+                    // after zoom ensure camera inside bounds
+                    ClampCameraPosition();
                 }
             }
 
@@ -288,6 +338,9 @@ namespace Controller
             Vector3 worldDelta = worldStart - worldNow;
             worldDelta.z = 0f;
             cam.transform.position = panStartCamPos + worldDelta * panSpeed;
+
+            // clamp after pan
+            ClampCameraPosition();
         }
 
         IInteractable RaycastForInteractable(Vector2 screenPos)
@@ -318,6 +371,50 @@ namespace Controller
             Vector3 diff = worldBefore - worldAfter;
             diff.z = 0f;
             cam.transform.position += diff;
+
+            // clamp to bounds after zoom
+            ClampCameraPosition();
+        }
+
+        // -----------------------
+        // Bounds clamping
+        // -----------------------
+        // public wrapper so inne skrypty (np. CameraFollow) mogą wymusić clamp
+        public void ClampToMapBounds()
+        {
+            ClampCameraPosition();
+        }
+
+        void ClampCameraPosition()
+        {
+            if (!useMapBounds) return;
+
+            // recompute if sprite changed at runtime
+            if (useMapBounds && mapSprite != null)
+            {
+                var b = mapSprite.bounds;
+                mapWorldBounds = new Rect(b.min.x, b.min.y, b.size.x, b.size.y);
+            }
+
+            float vertExtent = cam.orthographicSize;
+            float horzExtent = vertExtent * cam.aspect;
+
+            float minX = mapWorldBounds.xMin + horzExtent;
+            float maxX = mapWorldBounds.xMax - horzExtent;
+            float minY = mapWorldBounds.yMin + vertExtent;
+            float maxY = mapWorldBounds.yMax - vertExtent;
+
+            // if view is larger than map in X or Y, center camera on map
+            if (minX > maxX || minY > maxY)
+            {
+                Vector3 center = new Vector3(mapWorldBounds.center.x, mapWorldBounds.center.y, cam.transform.position.z);
+                cam.transform.position = center;
+                return;
+            }
+
+            float x = Mathf.Clamp(cam.transform.position.x, minX, maxX);
+            float y = Mathf.Clamp(cam.transform.position.y, minY, maxY);
+            cam.transform.position = new Vector3(x, y, cam.transform.position.z);
         }
     }
 }

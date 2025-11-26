@@ -6,6 +6,10 @@ public class TowerBase : MonoBehaviour
     public Transform turretPivot;
     public float range = 5f;
     public bool rotateTowardsTarget = true;
+    [Tooltip("Degrees per second for visual rotation")]
+    public float rotationSpeed = 720f;
+
+    public float rotationOffset = 90f;
 
     protected Transform currentTarget;
     protected float fireCooldown = 0f;
@@ -17,8 +21,25 @@ public class TowerBase : MonoBehaviour
         if (rotateTowardsTarget && turretPivot != null && currentTarget != null)
         {
             Vector2 dir = (currentTarget.position - turretPivot.position);
-            float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-            turretPivot.rotation = Quaternion.Lerp(turretPivot.rotation, Quaternion.Euler(0f, 0f, angle), Time.deltaTime * 12f);
+            if (dir.sqrMagnitude > 0.0001f)
+            {
+                float worldAngle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+
+                float parentAngle = 0f;
+                if (turretPivot.parent != null)
+                    parentAngle = turretPivot.parent.eulerAngles.z;
+
+                float desiredLocalAngle = Mathf.DeltaAngle(parentAngle, worldAngle) + rotationOffset;
+                Quaternion desiredLocalRot = Quaternion.Euler(0f, 0f, desiredLocalAngle);
+
+                Debug.Log($"[TowerBase] target={currentTarget?.name} parentAngle={parentAngle} desiredLocal={desiredLocalAngle} currentLocal={turretPivot.localRotation.eulerAngles.z}");
+
+                turretPivot.localRotation = Quaternion.RotateTowards(
+                    turretPivot.localRotation,
+                    desiredLocalRot,
+                    rotationSpeed * Time.deltaTime
+                );
+            }
         }
     }
 

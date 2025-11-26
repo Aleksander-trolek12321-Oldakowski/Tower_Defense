@@ -77,7 +77,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 5
   m_Sprite: {fileID: -6400726459961211001, guid: 8bf032bf3bddd4b40a5dd522d62dca93, type: 3}
-  m_Color: {r: 0.6, g: 0.4156863, b: 0.22352941, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -97,7 +97,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3711045991614624830}
   - component: {fileID: 2735157927235326417}
-  - component: {fileID: 8543587953113958677}
+  - component: {fileID: 9008688048296086974}
   m_Layer: 0
   m_Name: CannonTower
   m_TagString: Turret
@@ -138,10 +138,9 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: 8543587953113958677}
-  - {fileID: 6753465410743630388}
+  - {fileID: 9008688048296086974}
   ForceRemoteRenderTimeframe: 0
---- !u!114 &8543587953113958677
+--- !u!114 &9008688048296086974
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -169,7 +168,6 @@ GameObject:
   - component: {fileID: 8829938121096613009}
   - component: {fileID: 4574383786186780012}
   - component: {fileID: 11606659495031318}
-  - component: {fileID: 6753465410743630388}
   m_Layer: 0
   m_Name: CannonTower
   m_TagString: Turret
@@ -262,6 +260,8 @@ MonoBehaviour:
   turretPivot: {fileID: 8829938121096613009}
   range: 4
   rotateTowardsTarget: 1
+  rotationSpeed: 720
+  rotationOffset: 90
   projectilePrefab:
     RawGuidValue: 60d51a577d15ce44293631f9b1454e94
   muzzle: {fileID: 8819087013316869658}
@@ -269,23 +269,6 @@ MonoBehaviour:
   fireRate: 0.6
   damage: 3
   aoeRadius: 1.5
---- !u!114 &6753465410743630388
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8902939905241276012}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _stateAuthorityChangeErrorCorrectionDelta: 0
-  SyncScale: 0
-  SyncParent: 0
-  _autoAOIOverride: 0
-  DisableSharedModeInterpolation: 0
 --- !u!1 &9059584711467251259
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,13 +1,10 @@
 fileFormatVersion: 2
-guid: 3b9759d4a43d96f41a9624c712c91a8b
+guid: 58dc5bbef0a3ba343bd9535468a0931c
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 7906080611993694779
-    second: mostZniszczony_0
-  - first:
-      213: 6103446772765114281
-    second: mostZniszczony_1
+      213: -2055997941125772693
+    second: bazacrossbow1_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -87,7 +84,7 @@ TextureImporter:
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
   - serializedVersion: 3
-    buildTarget: Standalone
+    buildTarget: WebGL
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
@@ -100,7 +97,7 @@ TextureImporter:
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
   - serializedVersion: 3
-    buildTarget: WebGL
+    buildTarget: Standalone
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
@@ -168,22 +165,22 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: mostZniszczony_0
+      name: bazacrossbow1_0
       rect:
         serializedVersion: 2
-        x: 2
-        y: 370
-        width: 1989
-        height: 1226
+        x: 303
+        y: 9
+        width: 1400
+        height: 1233
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: b32bc7bad6a08bd60800000000000000
-      internalID: 7906080611993694779
+      spriteID: b6a834404c0a773e0800000000000000
+      internalID: -2055997941125772693
       vertices: []
       indices: 
       edges: []
@@ -191,16 +188,14 @@ TextureImporter:
     outline: []
     physicsShape: []
     bones: []
-    spriteID: f745604087e665d4a87a9aae768e04ef
+    spriteID: 
     internalID: 0
     vertices: []
     indices: 
     edges: []
     weights: []
     secondaryTextures: []
-    nameFileIdTable:
-      mostZniszczony_0: 7906080611993694779
-      mostZniszczony_1: 6103446772765114281
+    nameFileIdTable: {}
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

@@ -37,6 +37,7 @@ namespace Networking
 
         public Sprite[] enemyTypeSprites;
 
+        private List<Bridge> bridges = new List<Bridge>();
 
         [Networked] public bool MatchStarted { get; set; } = false;
 
@@ -489,6 +490,38 @@ namespace Networking
         {
             SelectedBranchIndex = index;
             Debug.Log($"[GamePlayManager] Path index changed via RPC → {index}");
+        }
+
+        public void RegisterBridge(Bridge bridge)
+        {
+            if (bridge == null) return;
+            if (!bridges.Contains(bridge))
+            {
+                bridges.Add(bridge);
+                bridge.bridgeIndex = bridges.IndexOf(bridge);
+                Debug.Log($"[GamePlayManager] Bridge registered: {bridge.name} as index {bridge.bridgeIndex}");
+            }
+        }
+
+        public void UnregisterBridge(Bridge bridge)
+        {
+            if (bridge == null) return;
+            if (bridges.Contains(bridge))
+            {
+                bridges.Remove(bridge);
+                for (int i = 0; i < bridges.Count; i++)
+                    bridges[i].bridgeIndex = i;
+            }
+        }
+
+        public Bridge GetBridgeByIndex(int index)
+        {
+            if (index < 0 || index >= bridges.Count) 
+            {
+                Debug.LogWarning($"[GamePlayManager] Bridge index {index} out of range (0-{bridges.Count-1})");
+                return null;
+            }
+            return bridges[index];
         }
     }
 }

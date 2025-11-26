@@ -173,7 +173,7 @@ MonoBehaviour:
   panSpeed: 1
   dragDeadzone: 5
   minOrthographicSize: 2
-  maxOrthographicSize: 12
+  maxOrthographicSize: 10.8
   pinchZoomSpeed: 0.02
   mouseWheelZoomSpeed: 2
   doubleClickZoomFactor: 0.5
@@ -183,6 +183,14 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   tapMaxMovement: 10
+  useMapBounds: 1
+  mapSprite: {fileID: 7958075399078028825, guid: 59a3cd7c46953494cbef0f7e378fc116, type: 3}
+  manualBounds:
+    serializedVersion: 2
+    x: -10
+    y: -10
+    width: 20
+    height: 20
 --- !u!114 &9185403767554850852
 MonoBehaviour:
   m_ObjectHideFlags: 0

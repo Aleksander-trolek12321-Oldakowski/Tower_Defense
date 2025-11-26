@@ -560,6 +560,53 @@ namespace Networking
             PathBranchGate.SetForcedBranchForPath(pm, branchIndex);
         }
 
+        public void RequestCollapseBridge(int bridgeIndex)
+        {
+            if (!Object.HasInputAuthority)
+            {
+                Debug.LogWarning("[PlayerNetwork] RequestCollapseBridge: not local player");
+                return;
+            }
+
+            Debug.Log($"[PlayerNetwork] Requesting collapse of bridge {bridgeIndex}");
+            RPC_RequestCollapseBridge(bridgeIndex);
+        }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
+        public void RPC_RequestCollapseBridge(int bridgeIndex, RpcInfo info = default)
+        {
+            if (!Runner.IsServer) 
+            {
+                Debug.LogWarning("[PlayerNetwork] RPC_RequestCollapseBridge: not server");
+                return;
+            }
+
+            Debug.Log($"[PlayerNetwork] RPC_RequestCollapseBridge received for bridge {bridgeIndex} from {info.Source}");
+
+            if (GamePlayManager.Instance == null)
+            {
+                Debug.LogError("[PlayerNetwork] GamePlayManager.Instance is null");
+                return;
+            }
+
+            var bridge = GamePlayManager.Instance.GetBridgeByIndex(bridgeIndex);
+            if (bridge == null)
+            {
+                Debug.LogError($"[PlayerNetwork] Bridge {bridgeIndex} not found");
+                return;
+            }
+
+            var playerObj = Runner.GetPlayerObject(info.Source);
+            var playerNetwork = playerObj?.GetComponent<PlayerNetwork>();
+            if (playerNetwork == null || playerNetwork.Team != 0)
+            {
+                Debug.LogWarning($"[PlayerNetwork] Player {info.Source} is not defender (team: {playerNetwork?.Team})");
+                return;
+            }
+
+            bridge.Server_CollapseNow();
+        }
+
 
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
         public void RPC_RequestUseAbility(int abilityId, Vector2 worldPos, RpcInfo info = default)

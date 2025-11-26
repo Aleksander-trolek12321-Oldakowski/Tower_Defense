@@ -596,15 +596,55 @@ namespace Networking
                 return;
             }
 
-            var playerObj = Runner.GetPlayerObject(info.Source);
-            var playerNetwork = playerObj?.GetComponent<PlayerNetwork>();
-            if (playerNetwork == null || playerNetwork.Team != 0)
+            PlayerRef sourcePlayer = info.Source;
+            
+            if (sourcePlayer == PlayerRef.None)
             {
-                Debug.LogWarning($"[PlayerNetwork] Player {info.Source} is not defender (team: {playerNetwork?.Team})");
+                Debug.LogWarning($"[PlayerNetwork] RPC source is None, using Object.InputAuthority as fallback");
+                sourcePlayer = this.Object.InputAuthority;
+            }
+
+            NetworkObject playerObj = null;
+            try
+            {
+                playerObj = Runner.GetPlayerObject(sourcePlayer);
+            }
+            catch
+            {
+                playerObj = null;
+            }
+
+            if (playerObj == null)
+            {
+                Debug.LogWarning($"[PlayerNetwork] Could not find player object for {sourcePlayer}, trying fallbacks...");
+                
+                if (FusionNetworkManager.PlayerObjects != null && FusionNetworkManager.PlayerObjects.ContainsKey(sourcePlayer))
+                {
+                    playerObj = FusionNetworkManager.PlayerObjects[sourcePlayer];
+                }
+                
+                if (playerObj == null)
+                {
+                    playerObj = this.Object;
+                    Debug.LogWarning($"[PlayerNetwork] Using self as player object fallback");
+                }
+            }
+
+            var playerNetwork = playerObj?.GetComponent<PlayerNetwork>();
+            if (playerNetwork == null)
+            {
+                Debug.LogError($"[PlayerNetwork] Could not find PlayerNetwork component for player {sourcePlayer}");
+                return;
+            }
+
+            if (playerNetwork.Team != 0)
+            {
+                Debug.LogWarning($"[PlayerNetwork] Player {sourcePlayer} is not defender (team: {playerNetwork.Team})");
                 return;
             }
 
             bridge.Server_CollapseNow();
+            Debug.Log($"[PlayerNetwork] Bridge {bridgeIndex} collapse approved for player {sourcePlayer}");
         }
 
 
@@ -619,7 +659,6 @@ namespace Networking
 
             var src = info.Source;
 
-            // Najpierw spróbuj standardowego API
             NetworkObject playerObj = null;
             try
             {
@@ -630,7 +669,6 @@ namespace Networking
                 playerObj = null;
             }
 
-            // Fallback: sprawdź mapę utrzymywaną przez FusionNetworkManager
             if (playerObj == null)
             {
                 if (Networking.FusionNetworkManager.PlayerObjects != null)

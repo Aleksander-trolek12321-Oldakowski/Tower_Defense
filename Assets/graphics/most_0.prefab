@@ -90,7 +90,7 @@ GameObject:
   - component: {fileID: 3198044411013554114}
   - component: {fileID: -8675310900310216603}
   - component: {fileID: -110647454526681642}
-  - component: {fileID: 3260943158897771}
+  - component: {fileID: -5649550619134971241}
   m_Layer: 0
   m_Name: most_0
   m_TagString: Untagged
@@ -185,7 +185,7 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: 3260943158897771}
+  - {fileID: -5649550619134971241}
   ForceRemoteRenderTimeframe: 0
 --- !u!61 &-110647454526681642
 BoxCollider2D:
@@ -233,7 +233,7 @@ BoxCollider2D:
   m_AutoTiling: 0
   m_Size: {x: 19.88, y: 9.38}
   m_EdgeRadius: 0
---- !u!114 &3260943158897771
+--- !u!114 &-5649550619134971241
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -242,14 +242,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 6454793694602291011}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d127bd71393154d419df8442d1c90ee0, type: 3}
+  m_Script: {fileID: 11500000, guid: 8be8491122aaaee44b2119cbcc4be793, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  spriteRenderer: {fileID: 3198044411013554114}
+  _IsCollapsed: 0
   normalSprite: {fileID: -7350502112423297230, guid: 919af163d47f8964a85b5091c32bd631, type: 3}
-  destroyedSprite: {fileID: 7906080611993694779, guid: 3b9759d4a43d96f41a9624c712c91a8b, type: 3}
-  enemyLayer:
-    serializedVersion: 2
-    m_Bits: 8
-  regenerateDelay: 15
-  _IsDestroyed: 0
+  collapsedSprite: {fileID: 7906080611993694779, guid: 3b9759d4a43d96f41a9624c712c91a8b, type: 3}
+  collapseDuration: 8
+  collapseCooldown: 120
+  spriteRenderer: {fileID: 3198044411013554114}
+  bridgeCollider: {fileID: -110647454526681642}
+  collapseEffect: {fileID: 0}
+  repairEffect: {fileID: 0}
+  bridgeIndex: -1

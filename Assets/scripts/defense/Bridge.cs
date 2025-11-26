@@ -2,8 +2,9 @@ using System.Collections;
 using Fusion;
 using UnityEngine;
 using Networking;
+using Controller;
 
-public class Bridge : NetworkBehaviour
+public class Bridge : NetworkBehaviour, IInteractable
 {
     [Networked] public bool IsCollapsed { get; set; } = false;
     [Networked] public TickTimer CollapseTimer { get; set; }
@@ -18,8 +19,6 @@ public class Bridge : NetworkBehaviour
     [Header("Components")]
     public SpriteRenderer spriteRenderer;
     public Collider2D bridgeCollider;
-    public GameObject normalVisual;
-    public GameObject collapsedVisual;
 
     [Header("Effects")]
     public GameObject collapseEffect;
@@ -86,9 +85,6 @@ public class Bridge : NetworkBehaviour
             spriteRenderer.sprite = IsCollapsed ? collapsedSprite : normalSprite;
         }
 
-        if (normalVisual != null) normalVisual.SetActive(!IsCollapsed);
-        if (collapsedVisual != null) collapsedVisual.SetActive(IsCollapsed);
-
         if (bridgeCollider != null)
         {
             bridgeCollider.isTrigger = !IsCollapsed;
@@ -130,6 +126,11 @@ public class Bridge : NetworkBehaviour
             Debug.Log($"[Bridge] Trigger kill enemy {other.name}");
             enemyAI.RPC_TakeDamage(1000f);
         }
+    }
+
+    public void OnInteract()
+    {
+        OnInteractAttempt();
     }
 
     public void OnInteractAttempt()
@@ -195,7 +196,6 @@ public class Bridge : NetworkBehaviour
         
         Debug.Log($"[Bridge] Bridge {bridgeIndex} repaired. Cooldown: {collapseCooldown}s");
 
-        // Efekt naprawy
         if (repairEffect != null)
         {
             Runner.Spawn(repairEffect, transform.position, Quaternion.identity);

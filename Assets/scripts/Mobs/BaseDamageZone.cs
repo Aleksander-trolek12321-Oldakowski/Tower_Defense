@@ -4,9 +4,6 @@ using UnityEngine;
 [RequireComponent(typeof(Collider2D))]
 public class BaseDamageZone : NetworkBehaviour
 {
-    [Tooltip("Ile obrażeń zadaje jeden mob po dotarciu do bazy")]
-    public float damagePerEnemy = 10f;
-
     [Tooltip("Referencja do skryptu HP bazy")]
     public BaseHealth baseHealth;
 
@@ -30,11 +27,14 @@ public class BaseDamageZone : NetworkBehaviour
         var enemy = other.GetComponent<EnemyAI>();
         if (enemy == null) return;
 
+        float damage = enemy.Attack;
+
         if (baseHealth != null)
         {
-            baseHealth.RPC_TakeDamage(damagePerEnemy);
+            baseHealth.RPC_TakeDamage(damage);
+            Debug.Log($"[BaseDamageZone] Enemy {enemy.name} dealt {damage} damage to base");
         }
 
-        enemy.RPC_TakeDamage(9999f);
+        enemy.RPC_TakeDamage(1000f); // Duża liczba aby na pewno zabiło
     }
 }

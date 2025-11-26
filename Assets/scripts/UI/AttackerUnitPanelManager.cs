@@ -8,13 +8,19 @@ namespace UI
     public class AttackerUnitPanelManager : MonoBehaviour
     {
         [Header("UI Elements")]
-        public Button[] unitButtons;        // buttons in UI (assign in inspector)
-        public Image[] greyMasks;           // same size as buttons; show when not affordable
-        public int[] unitCosts;             // cost per unit index (match GamePlayManager.unitPrefabs index)
-        public int[] unitIndices;           // which unit index each button represents (usually 0..n-1)
+        public Button[] unitButtons;        
+        public Image[] greyMasks;           
+        public int[] unitCosts;             
+        public int[] unitIndices;           
+
+        [Header("Selection Visual")]
+        public Image[] selectionBorders;    
+
+        [Header("Spawn Settings")]
+        public Transform defaultSpawnPoint;
+        public bool useMultipleSpawnPoints = false;
 
         int selectedIndex = -1;
-        public Transform defaultSpawnPoint;
 
         void Start()
         {
@@ -40,26 +46,34 @@ namespace UI
         void UpdateAffordability()
         {
             var local = Networking.PlayerNetwork.Local;
-            int money = local != null ? local.Money : 0;
+            if (local == null) return;
+
+            int money = local.Money;
+            
             for (int i = 0; i < unitButtons.Length; i++)
             {
-                int unitIdx = (i < unitIndices.Length) ? unitIndices[i] : i;
-                int cost = (i < unitCosts.Length) ? unitCosts[i] : 999999;
+                int cost = GetUnitCost(i);
                 bool affordable = money >= cost;
-                unitButtons[i].interactable = affordable;
+                
                 if (greyMasks != null && i < greyMasks.Length && greyMasks[i] != null)
                     greyMasks[i].gameObject.SetActive(!affordable);
-            }
-
-            // debug once per second to monitor money/affordability
-            if (Time.frameCount % 60 == 0)
-            {
-                Debug.Log($"[AttackerUnitPanel] money={money}, selectedIndex={selectedIndex}");
+                
+                unitButtons[i].interactable = affordable;
             }
         }
 
         public void OnUnitButtonClicked(int buttonIndex)
         {
+            var local = Networking.PlayerNetwork.Local;
+            if (local == null) return;
+
+            int cost = GetUnitCost(buttonIndex);
+            if (local.Money < cost)
+            {
+                Debug.Log($"[AttackerUnitPanel] Not enough money for unit {buttonIndex}. Cost: {cost}, Money: {local.Money}");
+                return;
+            }
+
             if (selectedIndex == buttonIndex)
             {
                 SetSelected(buttonIndex, false);
@@ -76,57 +90,110 @@ namespace UI
 
         void SetSelected(int btnIndex, bool sel)
         {
-            var colors = unitButtons[btnIndex].colors;
-            colors.normalColor = sel ? Color.white : Color.grey;
-            unitButtons[btnIndex].colors = colors;
+            if (selectionBorders != null && btnIndex < selectionBorders.Length)
+            {
+                selectionBorders[btnIndex].gameObject.SetActive(sel);
+            }
+            else
+            {
+                var colors = unitButtons[btnIndex].colors;
+                colors.normalColor = sel ? new Color(0.8f, 1f, 0.8f) : Color.white;
+                unitButtons[btnIndex].colors = colors;
+            }
         }
 
         void OnMapClick(Vector2 worldPos)
         {
             if (selectedIndex == -1) return;
+            
             var local = Networking.PlayerNetwork.Local;
             if (local == null) return;
-            if (local.Team != 1) return; // only attackers use this panel
+            if (local.Team != 1) return;
 
-            int unitIdx = (selectedIndex < unitIndices.Length) ? unitIndices[selectedIndex] : selectedIndex;
+            int unitIdx = GetUnitIndex(selectedIndex);
+            int cost = GetUnitCost(selectedIndex);
 
-            if (EnemySpawner.Instance != null)
+            if (local.Money < cost)
             {
-                EnemySpawner.Instance.OnSpawnButtonPressed(unitIdx);
-                Debug.Log($"[AttackerUnitPanel] Requested spawn enemy type {unitIdx} via EnemySpawner");
+                Debug.Log($"[AttackerUnitPanel] Not enough money to spawn unit. Cost: {cost}, Money: {local.Money}");
+                SetSelected(selectedIndex, false);
+                selectedIndex = -1;
+                return;
             }
-            else
-            {
-                int cost = (selectedIndex < unitCosts.Length) ? unitCosts[selectedIndex] : int.MaxValue;
-                if (local.Money < cost)
-                {
-                    Debug.Log("[AttackerUnitPanel] Not enough money");
-                    return;
-                }
 
-                local.RPC_RequestSpawnUnit(unitIdx, worldPos);
-            }
+            Vector2 spawnPos = GetSpawnPosition();
+
+            local.RPC_RequestSpawnUnit(unitIdx, spawnPos);
+            Debug.Log($"[AttackerUnitPanel] Spawning unit {unitIdx} at spawn position {spawnPos}");
 
             SetSelected(selectedIndex, false);
             selectedIndex = -1;
+            UpdateAffordability();
         }
 
+        private Vector2 GetSpawnPosition()
+        {
+            if (defaultSpawnPoint != null)
+                return (Vector2)defaultSpawnPoint.position;
+
+            if (Networking.GamePlayManager.Instance != null && 
+                Networking.GamePlayManager.Instance.attackerSpawnPoints != null && 
+                Networking.GamePlayManager.Instance.attackerSpawnPoints.Length > 0)
+            {
+                if (useMultipleSpawnPoints)
+                {
+                    int randomIndex = UnityEngine.Random.Range(0, Networking.GamePlayManager.Instance.attackerSpawnPoints.Length);
+                    return (Vector2)Networking.GamePlayManager.Instance.attackerSpawnPoints[randomIndex].position;
+                }
+                else
+                {
+                    return (Vector2)Networking.GamePlayManager.Instance.attackerSpawnPoints[0].position;
+                }
+            }
+
+            Debug.LogWarning("[AttackerUnitPanel] No spawn point assigned, using (0,0)");
+            return Vector2.zero;
+        }
 
         public void OnUnitButtonClickedRuntime(int index)
         {
-            Vector2 spawnPos = Vector2.zero;
-            if (defaultSpawnPoint != null) spawnPos = (Vector2)defaultSpawnPoint.position;
-            else if (Networking.GamePlayManager.Instance != null && Networking.GamePlayManager.Instance.attackerSpawnPoints != null && Networking.GamePlayManager.Instance.attackerSpawnPoints.Length > 0)
-                spawnPos = (Vector2)Networking.GamePlayManager.Instance.attackerSpawnPoints[0].position;
+            Vector2 spawnPos = GetSpawnPosition();
 
-            if (Networking.PlayerNetwork.Local != null)
+            var local = Networking.PlayerNetwork.Local;
+            if (local != null)
             {
-                Networking.PlayerNetwork.Local.RPC_RequestSpawnUnit(index, spawnPos);
+                int cost = GetUnitCost(index);
+                if (local.Money >= cost)
+                {
+                    local.RPC_RequestSpawnUnit(index, spawnPos);
+                    UpdateAffordability();
+                }
+                else
+                {
+                    Debug.Log($"[AttackerUnitPanel] Not enough money for runtime spawn. Cost: {cost}, Money: {local.Money}");
+                }
             }
             else
             {
                 Debug.LogWarning("[AttackerUnitPanel] No local PlayerNetwork available to request spawn.");
             }
+        }
+
+        private int GetUnitCost(int buttonIndex)
+        {
+            if (buttonIndex < unitCosts.Length)
+                return unitCosts[buttonIndex];
+            
+            int unitIdx = GetUnitIndex(buttonIndex);
+            return Networking.GamePlayManager.Instance != null ? 
+                Networking.GamePlayManager.Instance.GetUnitCost(unitIdx) : 999999;
+        }
+
+        private int GetUnitIndex(int buttonIndex)
+        {
+            if (buttonIndex < unitIndices.Length)
+                return unitIndices[buttonIndex];
+            return buttonIndex;
         }
     }
 }

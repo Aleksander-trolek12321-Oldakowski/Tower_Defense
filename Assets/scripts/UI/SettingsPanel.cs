@@ -4,7 +4,7 @@ namespace UI
 {
     public class SettingsPanel : MonoBehaviour
     {
-        public GameObject panel; // assign panel GameObject in inspector
+        public GameObject panel;
 
         public void Toggle()
         {

@@ -405,18 +405,19 @@ namespace Networking
         {
             if (!Runner.IsServer) return;
 
-            var srcPlayerRef = info.Source;
-            var playerObj = Runner.GetPlayerObject(srcPlayerRef);
-            var pn = playerObj != null ? playerObj.GetComponent<PlayerNetwork>() : null;
+            Debug.Log($"[RPC_RequestSpawnUnit] Received from {info.Source} for unit {unitIndex} at {worldPos}");
+
+            // Znajdź PlayerNetwork gracza
+            PlayerNetwork pn = FindPlayerNetwork(info.Source);
             if (pn == null)
             {
-                Debug.Log("[RPC_RequestSpawnUnit] sender has no PlayerNetwork");
+                Debug.LogError($"[RPC_RequestSpawnUnit] Could not find PlayerNetwork for {info.Source}");
                 return;
             }
 
             if (pn.Team != 1)
             {
-                Debug.Log("[RPC_RequestSpawnUnit] denied: not attacker");
+                Debug.Log($"[RPC_RequestSpawnUnit] denied: not attacker (team {pn.Team})");
                 return;
             }
 
@@ -427,10 +428,61 @@ namespace Networking
                 return;
             }
 
+            // Odejmij pieniądze
             pn.Money -= cost;
-            GamePlayManager.Instance.SpawnUnitByIndex(unitIndex, worldPos, pn.Team, srcPlayerRef);
 
-            Debug.Log($"[RPC_RequestSpawnUnit] spawned unit {unitIndex} at {worldPos} for player {srcPlayerRef}. Money left: {pn.Money}");
+            // UŻYJ GamePlayManager DO SPAWNU FALI
+            if (GamePlayManager.Instance != null)
+            {
+                GamePlayManager.Instance.SpawnWaveByIndex(unitIndex, worldPos, pn.Team, info.Source);
+                Debug.Log($"[RPC_RequestSpawnUnit] Spawned wave of units via GamePlayManager");
+            }
+            else
+            {
+                Debug.LogError("[RPC_RequestSpawnUnit] GamePlayManager.Instance is null!");
+            }
+
+            Debug.Log($"[RPC_RequestSpawnUnit] requested wave of units {unitIndex} at {worldPos} for player {info.Source}. Money left: {pn.Money}");
+        }
+
+        private PlayerNetwork FindPlayerNetwork(PlayerRef playerRef)
+        {
+            NetworkObject playerObj = null;
+            PlayerNetwork pn = null;
+
+            try
+            {
+                playerObj = Runner.GetPlayerObject(playerRef);
+                if (playerObj != null)
+                {
+                    pn = playerObj.GetComponent<PlayerNetwork>();
+                    if (pn != null) return pn;
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[PlayerNetwork] GetPlayerObject failed: {ex.Message}");
+            }
+
+            if (FusionNetworkManager.PlayerObjects != null)
+            {
+                if (FusionNetworkManager.PlayerObjects.TryGetValue(playerRef, out playerObj))
+                {
+                    pn = playerObj?.GetComponent<PlayerNetwork>();
+                    if (pn != null) return pn;
+                }
+            }
+
+            var allPlayerNetworks = FindObjectsOfType<PlayerNetwork>();
+            foreach (var player in allPlayerNetworks)
+            {
+                if (player.Object != null && player.Object.InputAuthority == playerRef)
+                {
+                    return player;
+                }
+            }
+
+            return null;
         }
 
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]

@@ -27,13 +27,15 @@ namespace Networking
 
         private Dictionary<int, bool> spotOccupied = new Dictionary<int, bool>();
 
-        [Header("Attacker starting units")]
-        public Transform[] attackerSpawnPoints;
-        public int[] initialUnitsPerSpawnPoint;
-
         [Header("Economy / Costs")]
         public int[] unitCosts;
         public int[] towerCosts;
+
+        [Header("Enemy Spawn Settings")]
+        public Transform[] attackerSpawnPoints;
+        public PathManager startPath;
+        public float spawnInterval = 0.15f;
+        public int[] defaultCounts = new int[] { 4, 10, 1, 2 };
 
         public Sprite[] enemyTypeSprites;
 
@@ -66,69 +68,112 @@ namespace Networking
             MatchStarted = true;
             Debug.Log("[GamePlayManager] MatchStarted = true (server)");
 
-            SpawnInitialUnitsForTeam(1);
         }
 
-        public void SpawnInitialUnitsForTeam(int team)
+
+        public void SpawnWaveByIndex(int typeIndex, Vector2 spawnPos, int team, PlayerRef requester)
         {
             if (!Runner.IsServer) return;
-            if (team != 1) return;
 
-            if (attackerSpawnPoints == null || attackerSpawnPoints.Length == 0)
+            Debug.Log($"[GamePlayManager] SpawnWaveByIndex: typeIndex={typeIndex}, spawnPos={spawnPos}, team={team}");
+
+            int count = 1;
+            if (defaultCounts != null && typeIndex >= 0 && typeIndex < defaultCounts.Length)
+                count = Mathf.Max(1, defaultCounts[typeIndex]);
+
+            StartCoroutine(SpawnWaveCoroutine(typeIndex, spawnPos, count, spawnInterval, team, requester));
+        }
+
+        private IEnumerator SpawnWaveCoroutine(int typeIndex, Vector2 spawnPos, int count, float interval, int team, PlayerRef requester)
+        {
+            Debug.Log($"[GamePlayManager] Starting wave coroutine: {count} units of type {typeIndex}");
+
+            for (int i = 0; i < count; i++)
             {
-                Debug.Log("[GamePlayManager] No attackerSpawnPoints assigned - skipping initial spawn.");
+                Vector2 offset = new Vector2(0.2f * (i % 5), 0.2f * (i / 5));
+                Vector3 finalPos = (Vector3)(spawnPos + offset);
+
+                SpawnSingleUnit(typeIndex, finalPos, team, requester);
+                yield return new WaitForSeconds(interval);
+            }
+
+            Debug.Log($"[GamePlayManager] Completed spawning wave of {count} units for player {requester}");
+        }
+
+        private void SpawnSingleUnit(int typeIndex, Vector3 spawnPos, int team, PlayerRef requester)
+        {
+            if (!Runner.IsServer) return;
+
+            if (unitPrefabs == null || typeIndex < 0 || typeIndex >= unitPrefabs.Length)
+            {
+                Debug.LogWarning($"[GamePlayManager] SpawnSingleUnit invalid index {typeIndex}");
                 return;
             }
 
-            if (unitPrefabs == null || unitPrefabs.Length == 0)
+            var prefab = unitPrefabs[typeIndex];
+            if (prefab == null)
             {
-                Debug.LogWarning("[GamePlayManager] No unitPrefabs assigned - cannot spawn initial units.");
+                Debug.LogError($"[GamePlayManager] unitPrefabs[{typeIndex}] is null!");
                 return;
             }
 
-            for (int i = 0; i < attackerSpawnPoints.Length; i++)
+            try
             {
-                Vector3 pos = attackerSpawnPoints[i].position;
-                int unitIndex = 0;
-
-                int spawnCount = 1;
-                if (initialUnitsPerSpawnPoint != null && i < initialUnitsPerSpawnPoint.Length)
-                    spawnCount = Mathf.Max(1, initialUnitsPerSpawnPoint[i]);
-
-                for (int j = 0; j < spawnCount; j++)
+                var no = Runner.Spawn(prefab, spawnPos, Quaternion.identity, PlayerRef.None);
+                if (no == null)
                 {
-                    Vector3 spawnPos = pos + new Vector3(0.2f * j, 0f, 0f);
-                    var no = Runner.Spawn(unitPrefabs[unitIndex], spawnPos, Quaternion.identity, PlayerRef.None);
-                    var en = no.GetComponent<EnemyNetwork>();
-                    if (en != null) en.Team = team;
+                    Debug.LogError("[GamePlayManager] Runner.Spawn returned null!");
+                    return;
+                }
 
-                    var tv = no.GetComponent<TeamVisibility>();
-                    if (tv != null) tv.UpdateVisibility();
+                Debug.Log($"[GamePlayManager] Successfully spawned: {no.name} at {spawnPos}");
+
+                var ai = no.GetComponent<EnemyAI>();
+                if (ai != null)
+                {
+                    ai.InitStats((EnemyType)typeIndex);
+                    
+                    if (startPath != null)
+                    {
+                        ai.SetPath(startPath);
+                        ai.SetInitialNetworkPosition(spawnPos);
+                        Debug.Log($"[GamePlayManager] Set path {startPath.name} for enemy");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[GamePlayManager] startPath is null - enemy won't move!");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("[GamePlayManager] Spawned unit has no EnemyAI component");
+                }
+
+                var enNet = no.GetComponent<EnemyNetwork>();
+                if (enNet != null) 
+                {
+                    enNet.Team = team;
+                    Debug.Log($"[GamePlayManager] Set team to {team}");
+                }
+
+                var tv = no.GetComponent<TeamVisibility>();
+                if (tv != null) 
+                {
+                    tv.UpdateVisibility();
+                    Debug.Log($"[GamePlayManager] Updated TeamVisibility");
                 }
             }
-
-            Debug.Log("[GamePlayManager] SpawnInitialUnitsForTeam executed for team " + team);
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[GamePlayManager] Spawn failed with exception: {ex.Message}\n{ex.StackTrace}");
+            }
         }
 
         public void SpawnUnitByIndex(int idx, Vector2 pos, int team, PlayerRef requester)
         {
             if (!Runner.IsServer) return;
 
-            if (unitPrefabs == null || idx < 0 || idx >= unitPrefabs.Length)
-            {
-                Debug.LogWarning($"[GamePlayManager] SpawnUnitByIndex invalid index {idx}");
-                return;
-            }
-
-            Vector3 spawnPos = new Vector3(pos.x, pos.y, 0f);
-            var no = Runner.Spawn(unitPrefabs[idx], spawnPos, Quaternion.identity, PlayerRef.None);
-            var en = no.GetComponent<EnemyNetwork>();
-            if (en != null) en.Team = team;
-
-            var tv = no.GetComponent<TeamVisibility>();
-            if (tv != null) tv.UpdateVisibility();
-
-            Debug.Log($"[GamePlayManager] Spawned unit idx={idx} at {pos} for team={team} requested by {requester}");
+            SpawnWaveByIndex(idx, pos, team, requester);
         }
 
         public void PlaceTowerAtSpot(int towerIndex, int spotId, int team, PlayerRef requester)

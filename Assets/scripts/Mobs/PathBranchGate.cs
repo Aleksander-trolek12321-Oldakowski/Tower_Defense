@@ -1,38 +1,24 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 public class PathBranchGate : MonoBehaviour
 {
     private static Dictionary<PathManager, List<PathBranchGate>> gatesByPath = new();
-    private static Dictionary<PathManager, List<EnemyAI>> waitingEnemiesByPath = new();
+    private static Dictionary<PathManager, int> forcedBranchByPath = new();
 
     [Header("Konfiguracja")]
-    [Tooltip("PathManager, na końcu którego ten gate ma się aktywować")]
     public PathManager targetPath;
-
-    [Tooltip("Index gałęzi w targetPath.branches, którą wybiera ten gate")]
     public int branchIndex = 0;
+    public GameObject arrowVisual;
 
-    [Tooltip("Ile sekund po przybyciu enemy jest jeszcze możliwy do reroutu (serwer)")]
-    public float rerouteWindowSeconds = 2.0f;
-
-    [Tooltip("GameObject z wizualizacją strzałki (np. Sprite). Będzie widoczny tylko dla teamu atakującego.")]
-    public GameObject visuals;
+    void Awake()
+    {
+        var sr = GetComponentInChildren<SpriteRenderer>();
+        UpdateArrowVisibilityLocal();
+    }
 
     private void OnEnable() => RegisterGate();
     private void OnDisable() => UnregisterGate();
-
-    private void Update()
-    {
-        var local = Networking.PlayerNetwork.Local;
-        if (visuals != null)
-        {
-            bool shouldShow = (local != null && local.Team == 1);
-            if (visuals.activeSelf != shouldShow)
-                visuals.SetActive(shouldShow);
-        }
-    }
 
     private void RegisterGate()
     {
@@ -48,8 +34,7 @@ public class PathBranchGate : MonoBehaviour
             gatesByPath[targetPath] = list;
         }
 
-        if (!list.Contains(this))
-            list.Add(this);
+        if (!list.Contains(this)) list.Add(this);
 
         gameObject.SetActive(true);
     }
@@ -57,98 +42,102 @@ public class PathBranchGate : MonoBehaviour
     private void UnregisterGate()
     {
         if (targetPath == null) return;
-
         if (gatesByPath.TryGetValue(targetPath, out var list))
         {
             list.Remove(this);
-            if (list.Count == 0)
-                gatesByPath.Remove(targetPath);
-        }
-    }
-
-    public static void NotifyEnemyArrived(EnemyAI enemy, PathManager path)
-    {
-        if (enemy == null || path == null) return;
-
-        if (!waitingEnemiesByPath.TryGetValue(path, out var list))
-        {
-            list = new List<EnemyAI>();
-            waitingEnemiesByPath[path] = list;
-        }
-
-        if (!list.Contains(enemy))
-            list.Add(enemy);
-
-        if (gatesByPath.TryGetValue(path, out var gates))
-        {
-            foreach (var gate in gates)
-            {
-                if (gate != null)
-                    gate.gameObject.SetActive(true);
-            }
-        }
-
-        enemy.StartCoroutine(RemoveFromWaitingAfter(enemy, path, enemy.gameObject, gateWait: null, waitSeconds: enemy.GetRerouteWindowSeconds()));
-    }
-
-    private static IEnumerator RemoveFromWaitingAfter(EnemyAI enemy, PathManager path, GameObject dummy, object gateWait, float waitSeconds)
-    {
-        yield return new WaitForSeconds(waitSeconds);
-
-        if (path == null) yield break;
-        if (!waitingEnemiesByPath.TryGetValue(path, out var list)) yield break;
-        if (enemy != null)
-            list.Remove(enemy);
-
-        if (list.Count == 0)
-            HideGatesForPath(path);
-    }
-
-    public static void NotifyEnemyRemoved(EnemyAI enemy, PathManager path)
-    {
-        if (enemy == null || path == null) return;
-        if (!waitingEnemiesByPath.TryGetValue(path, out var list)) return;
-
-        if (list.Remove(enemy))
-        {
-            list.RemoveAll(e => e == null);
-            if (list.Count == 0)
-                HideGatesForPath(path);
+            if (list.Count == 0) gatesByPath.Remove(targetPath);
         }
     }
 
     public void OnGateClicked()
     {
         var local = Networking.PlayerNetwork.Local;
-        if (local == null || local.Team != 1)
+        if (local != null && local.Team != 1)
         {
-            Debug.Log("[PathBranchGate] OnGateClicked ignored: not attacker or no local player.");
+            Debug.Log("[PathBranchGate] Only attacker can use gates. Click ignored.");
             return;
         }
 
-        if (targetPath == null) return;
+        Debug.Log($"[PathBranchGate] Gate clicked for path {targetPath.name}, branch {branchIndex}");
 
-        if (!waitingEnemiesByPath.TryGetValue(targetPath, out var enemies) || enemies.Count == 0)
-            return;
-
-        foreach (var enemy in enemies.ToArray())
+        if (Networking.PlayerNetwork.Local != null)
         {
-            if (enemy == null) continue;
-            enemy.RPC_SetBranch(branchIndex);
+            Networking.PlayerNetwork.Local.RPC_RequestSetBranch(targetPath != null ? targetPath.name : "", branchIndex);
         }
-
-        enemies.Clear();
-        HideGatesForPath(targetPath);
+        else
+        {
+            Debug.LogWarning("[PathBranchGate] No local player network found!");
+        }
     }
 
-    private static void HideGatesForPath(PathManager path)
+    public static void SetForcedBranchForPath(PathManager path, int branchIdx)
     {
-        if (!gatesByPath.TryGetValue(path, out var gates)) return;
+        if (path == null) return;
+        forcedBranchByPath[path] = branchIdx;
+        Debug.Log($"[PathBranchGate] Forced branch for path {path.name} set to {branchIdx}");
 
-        foreach (var gate in gates)
+        ApplyBranchToAllEnemiesOnPath(path, branchIdx);
+    }
+
+    public static int GetForcedBranchForPath(PathManager path)
+    {
+        if (path == null) return -1;
+        if (forcedBranchByPath.TryGetValue(path, out var v)) return v;
+        return -1;
+    }
+
+    public static void ClearForcedBranchForPath(PathManager path)
+    {
+        if (path == null) return;
+        forcedBranchByPath.Remove(path);
+    }
+
+    private static void ApplyBranchToAllEnemiesOnPath(PathManager path, int branchIndex)
+    {
+        if (path == null) return;
+        
+        var allEnemies = FindObjectsOfType<EnemyAI>();
+        int appliedCount = 0;
+        
+        foreach (var enemy in allEnemies)
         {
-            if (gate != null)
-                gate.gameObject.SetActive(false);
+            if (enemy != null)
+            {
+                enemy.RPC_SetBranch(branchIndex);
+                appliedCount++;
+            }
+        }
+        
+        Debug.Log($"[PathBranchGate] Applied branch {branchIndex} to {appliedCount} enemies on path {path.name}");
+    }
+
+    public void UpdateArrowVisibilityLocal()
+    {
+        if (arrowVisual == null)
+        {
+            var sr = GetComponentInChildren<SpriteRenderer>(true);
+            if (sr != null) arrowVisual = sr.gameObject;
+        }
+
+        if (arrowVisual != null)
+        {
+            arrowVisual.SetActive(true);
+
+            var sr = arrowVisual.GetComponent<SpriteRenderer>();
+            if (sr != null)
+            {
+                sr.enabled = true;
+                try
+                {
+                    sr.sortingLayerName = "Default";
+                    sr.sortingOrder = 500;
+                }
+                catch {  }
+            }
+
+            var pos = arrowVisual.transform.position;
+            pos.z = 0f;
+            arrowVisual.transform.position = pos;
         }
     }
 }

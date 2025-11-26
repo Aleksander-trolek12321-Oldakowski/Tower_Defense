@@ -1,6 +1,6 @@
+using System.Collections;
 using Fusion;
 using UnityEngine;
-using System.Collections;
 
 [RequireComponent(typeof(Rigidbody2D))]
 public class EnemyAI : NetworkBehaviour
@@ -16,43 +16,42 @@ public class EnemyAI : NetworkBehaviour
     [Networked] public bool GhostVisible { get; set; } = true;
 
     private Rigidbody2D rb;
-    private PathManager path;
     private PathManager currentPath;
     private int currentWaypointIndex = 0;
     private bool reachedEnd = false;
-    private bool waitingForBranchChoice = false;
 
-    [Header("Visuals")]
+    [Header("Visuals (fallback)")]
     public GameObject visualsRoot;
     public SpriteRenderer spriteRenderer;
     public Animator animator;
     public Sprite[] typeSprites;
 
-    [Header("Pathing")]
-    public float rerouteWindowSecondsInspector = 2.0f;
-
     public override void Spawned()
     {
+        base.Spawned();
+
         rb = GetComponent<Rigidbody2D>();
         if (rb != null)
         {
             rb.gravityScale = 0f;
             rb.constraints = RigidbodyConstraints2D.FreezeRotation;
-            rb.isKinematic = !Runner.IsServer;
+            rb.isKinematic = !(Runner != null && Runner.IsServer);
         }
+
+        if (spriteRenderer == null)
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+
+        Debug.Log($"[EnemyAI] Spawned (IsServer={(Runner!=null?Runner.IsServer:false)}) Type={Type} SpriteIndex={SpriteIndex} pos={transform.position}");
 
         if (Runner != null && Runner.IsServer && Type == EnemyType.Ghost)
         {
             StartCoroutine(GhostCycleCoroutine());
         }
 
-        if (spriteRenderer == null)
-            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
-
-        ApplySpriteFromIndex();
-
         if (Runner != null && Runner.IsServer)
             NetworkedPosition = transform.position;
+
+        ApplySpriteFromIndex();
     }
 
     public void InitStats(EnemyType type)
@@ -72,20 +71,59 @@ public class EnemyAI : NetworkBehaviour
             case EnemyType.Ghost:
                 HP = 1f; Speed = 8f; Attack = 1f;
                 break;
+            default:
+                HP = 1f; Speed = 1f; Attack = 1f;
+                break;
         }
-    }
 
-    public float GetRerouteWindowSeconds() => rerouteWindowSecondsInspector;
+        if (Runner != null && Runner.IsServer)
+        {
+            SpriteIndex = (int)type;
+            Debug.Log($"[EnemyAI] InitStats (server): type={type} -> SpriteIndex={SpriteIndex}");
+        }
+        else
+        {
+            SpriteIndex = (int)type;
+            Debug.Log($"[EnemyAI] InitStats (client/local): tentative SpriteIndex={SpriteIndex}");
+        }
+
+        ApplySpriteFromIndex();
+    }
 
     void ApplySpriteFromIndex()
     {
         if (spriteRenderer == null) return;
+
         var mgr = Networking.GamePlayManager.Instance;
         if (mgr != null && mgr.enemyTypeSprites != null && SpriteIndex >= 0 && SpriteIndex < mgr.enemyTypeSprites.Length)
         {
             var s = mgr.enemyTypeSprites[SpriteIndex];
-            if (s != null)
+            if (s != null && spriteRenderer.sprite != s)
+            {
                 spriteRenderer.sprite = s;
+                return;
+            }
+        }
+
+        if (typeSprites != null && SpriteIndex >= 0 && SpriteIndex < typeSprites.Length)
+        {
+            var s2 = typeSprites[SpriteIndex];
+            if (s2 != null && spriteRenderer.sprite != s2)
+            {
+                spriteRenderer.sprite = s2;
+                return;
+            }
+        }
+
+        int tIndex = (int)Type;
+        if (typeSprites != null && tIndex >= 0 && tIndex < typeSprites.Length)
+        {
+            var s3 = typeSprites[tIndex];
+            if (s3 != null && spriteRenderer.sprite != s3)
+            {
+                spriteRenderer.sprite = s3;
+                return;
+            }
         }
     }
 
@@ -111,11 +149,9 @@ public class EnemyAI : NetworkBehaviour
 
     public void SetPath(PathManager manager)
     {
-        path = manager;
         currentPath = manager;
         currentWaypointIndex = 0;
         reachedEnd = false;
-        waitingForBranchChoice = false;
 
         if (currentPath != null && currentPath.GetWaypoint(0) != null)
         {
@@ -154,8 +190,13 @@ public class EnemyAI : NetworkBehaviour
 
     private void MoveOnServer()
     {
-        if (currentPath == null || reachedEnd || waitingForBranchChoice) return;
-        if (IsFrozen) return;
+        if (rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+            if (rb == null) return;
+        }
+
+        if (currentPath == null || reachedEnd || IsFrozen) return;
 
         var waypoint = currentPath.GetWaypoint(currentWaypointIndex);
         if (waypoint == null) return;
@@ -171,80 +212,58 @@ public class EnemyAI : NetworkBehaviour
             {
                 if (currentPath.HasBranches)
                 {
-                    if (currentPath.GetBranchCount() == 1)
-                    {
-                        var next = currentPath.GetBranch(0);
-                        if (next != null)
-                        {
-                            var lastPos = currentPath.GetWaypoint(currentPath.GetWaypointCount() - 1).position;
-                            int idxInNext = next.FindWaypointIndexByPosition(lastPos);
-                            if (idxInNext >= 0 && idxInNext < next.GetWaypointCount() - 1)
-                            {
-                                currentPath = next;
-                                currentWaypointIndex = 0;
-                                reachedEnd = false;
-                                var wp0 = currentPath.GetWaypoint(0);
-                                if (wp0 != null)
-                                {
-                                    rb.position = wp0.position;
-                                    NetworkedPosition = wp0.position;
-                                }
-                                return;
-                            }
-                            else
-                            {
-                                reachedEnd = true;
-                                return;
-                            }
-                        }
-                    }
-
-                    var defaultBranch = currentPath.GetBranch(0);
-                    if (defaultBranch != null)
-                    {
-                        var lastPos = currentPath.GetWaypoint(currentPath.GetWaypointCount() - 1).position;
-                        int idxInDefault = defaultBranch.FindWaypointIndexByPosition(lastPos);
-                        if (idxInDefault >= 0 && idxInDefault < defaultBranch.GetWaypointCount() - 1)
-                        {
-                            currentPath = defaultBranch;
-                            currentWaypointIndex = 0;
-                            reachedEnd = false;
-
-                            PathBranchGate.NotifyEnemyArrived(this, currentPath);
-
-                            var wp0 = currentPath.GetWaypoint(0);
-                            if (wp0 != null)
-                            {
-                                rb.position = wp0.position;
-                                NetworkedPosition = wp0.position;
-                            }
-                            return;
-                        }
-                        else
-                        {
-                            reachedEnd = true;
-                            return;
-                        }
-                    }
-
-                    waitingForBranchChoice = true;
-                    PathBranchGate.NotifyEnemyArrived(this, currentPath);
+                    int branchToUse = GetBranchToUse();
+                    ApplyBranchSelection(branchToUse);
                     return;
                 }
 
                 reachedEnd = true;
                 return;
             }
-
-            waypoint = currentPath.GetWaypoint(currentWaypointIndex);
-            if (waypoint == null) return;
-            dir = ((Vector2)waypoint.position - rb.position);
         }
 
         dir.Normalize();
         Vector2 newPos = rb.position + dir * Speed * (float)Runner.DeltaTime;
         rb.MovePosition(newPos);
         NetworkedPosition = newPos;
+    }
+
+    private int GetBranchToUse()
+    {
+        if (currentPath == null || !currentPath.HasBranches) return 0;
+        
+        // Sprawdź czy jest wymuszona gałąź dla tej ścieżki
+        int forcedBranch = PathBranchGate.GetForcedBranchForPath(currentPath);
+        
+        if (forcedBranch >= 0 && forcedBranch < currentPath.GetBranchCount())
+        {
+            Debug.Log($"[EnemyAI] Using forced branch {forcedBranch} for path {currentPath.name}");
+            return forcedBranch;
+        }
+        
+        Debug.Log($"[EnemyAI] Using default branch 0 for path {currentPath.name}");
+        return 0;
+    }
+
+    private void ApplyBranchSelection(int branchIndex)
+    {
+        if (currentPath == null || !currentPath.HasBranches) return;
+
+        var newBranch = currentPath.GetBranch(branchIndex);
+        if (newBranch == null) 
+        {
+            Debug.LogWarning($"[EnemyAI] Branch {branchIndex} is null for path {currentPath.name}");
+            return;
+        }
+
+        int nearest = newBranch.FindWaypointIndexByPosition(transform.position, 1.0f);
+        if (nearest < 0) nearest = 0;
+
+        currentPath = newBranch;
+        currentWaypointIndex = nearest;
+        reachedEnd = false;
+
+        Debug.Log($"[EnemyAI] ApplyBranchSelection -> switched to {currentPath.name} startIndex={currentWaypointIndex} (enemy={name})");
     }
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -254,29 +273,16 @@ public class EnemyAI : NetworkBehaviour
         if (currentPath == null) return;
         if (!currentPath.HasBranches) return;
 
-        var newBranch = currentPath.GetBranch(branchIndex);
-        if (newBranch == null) return;
-
-        var lastPos = currentPath.GetWaypoint(Mathf.Max(0, currentPath.GetWaypointCount() - 1)).position;
-        int idxInNew = newBranch.FindWaypointIndexByPosition(lastPos);
-        if (idxInNew < 0 || idxInNew >= newBranch.GetWaypointCount() - 1)
+        Debug.Log($"[EnemyAI] RPC_SetBranch received -> branch {branchIndex} for enemy {name} on path {currentPath.name}");
+        
+        if (branchIndex >= 0 && branchIndex < currentPath.GetBranchCount())
         {
-            return;
+            ApplyBranchSelection(branchIndex);
         }
-
-        currentPath = newBranch;
-        currentWaypointIndex = 0;
-        reachedEnd = false;
-        waitingForBranchChoice = false;
-
-        var wp0 = currentPath.GetWaypoint(0);
-        if (wp0 != null)
+        else
         {
-            rb.position = wp0.position;
-            NetworkedPosition = wp0.position;
+            Debug.LogWarning($"[EnemyAI] RPC_SetBranch: branch index {branchIndex} is out of range for path {currentPath.name}");
         }
-
-        PathBranchGate.NotifyEnemyRemoved(this, currentPath);
     }
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -285,8 +291,6 @@ public class EnemyAI : NetworkBehaviour
         if (!Runner.IsServer) return;
         HP -= dmg;
         if (HP <= 0)
-        {
             Runner.Despawn(Object);
-        }
     }
 }

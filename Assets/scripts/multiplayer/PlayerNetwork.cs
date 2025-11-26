@@ -108,7 +108,6 @@ namespace Networking
             }
 
             Local = this;
-
             UpdateLocalUI();
 
             if (forceAttachButtonHandlers)
@@ -533,6 +532,32 @@ namespace Networking
             GamePlayManager.Instance.PlaceTowerAtSpot(towerIndex, spotId, pnComp.Team, src);
 
             Debug.Log($"[RPC_RequestPlaceTower] placed tower {towerIndex} at spot {spotId} for player {src}. Money left: {pnComp.Money}");
+        }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
+        public void RPC_RequestSetBranch(string pathName, int branchIndex, RpcInfo info = default)
+        {
+            if (!Runner.IsServer)
+            {
+                Debug.Log("[RPC_RequestSetBranch] Not server - ignoring.");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(pathName))
+            {
+                Debug.LogWarning("[RPC_RequestSetBranch] empty pathName");
+                return;
+            }
+
+            if (!PathManager.Instances.TryGetValue(pathName, out var pm))
+            {
+                Debug.LogWarning($"[RPC_RequestSetBranch] Could not find PathManager by name '{pathName}'");
+                return;
+            }
+
+            Debug.Log($"[RPC_RequestSetBranch] Server applying forced branch {branchIndex} on path {pathName}");
+
+            PathBranchGate.SetForcedBranchForPath(pm, branchIndex);
         }
 
 

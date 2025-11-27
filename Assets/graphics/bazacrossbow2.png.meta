@@ -195,7 +195,8 @@ TextureImporter:
     edges: []
     weights: []
     secondaryTextures: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      bazacrossbow2_0: -3434057052371312641
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

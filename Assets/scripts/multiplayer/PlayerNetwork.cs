@@ -709,64 +709,6 @@ namespace Networking
             Debug.Log($"[PlayerNetwork] Bridge {bridgeIndex} collapse approved for player {sourcePlayer}");
         }
 
-
-        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
-        public void RPC_RequestUseAbility(int abilityId, Vector2 worldPos, RpcInfo info = default)
-        {
-            if (!Runner.IsServer)
-            {
-                Debug.Log("[RPC_RequestUseAbility] Not server - ignoring.");
-                return;
-            }
-
-            var src = info.Source;
-
-            NetworkObject playerObj = null;
-            try
-            {
-                playerObj = Runner.GetPlayerObject(src);
-            }
-            catch
-            {
-                playerObj = null;
-            }
-
-            if (playerObj == null)
-            {
-                if (Networking.FusionNetworkManager.PlayerObjects != null)
-                {
-                    Networking.FusionNetworkManager.PlayerObjects.TryGetValue(src, out playerObj);
-                }
-            }
-
-            var pn = playerObj != null ? playerObj.GetComponent<PlayerNetwork>() : null;
-            if (pn == null)
-            {
-                Debug.Log("[RPC_RequestUseAbility] sender has no PlayerNetwork");
-                return;
-            }
-
-            int team = pn.Team;
-            bool allowed = false;
-            if (abilityId >= 0 && abilityId <= 2 && team == 1) allowed = true;
-            if (abilityId >= 3 && abilityId <= 5 && team == 0) allowed = true;
-
-            if (!allowed)
-            {
-                Debug.Log($"[RPC_RequestUseAbility] denied: team {team} cannot use ability {abilityId}");
-                return;
-            }
-
-            if (GamePlayManager.Instance != null)
-            {
-                GamePlayManager.Instance.Server_HandleAbilityRequest(abilityId, worldPos, src);
-            }
-            else
-            {
-                Debug.LogWarning("[RPC_RequestUseAbility] GamePlayManager.Instance == null");
-            }
-        }
-
         // -----------------------
         // Scene / UI persistence helpers
         // -----------------------

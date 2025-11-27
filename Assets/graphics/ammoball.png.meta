@@ -195,7 +195,8 @@ TextureImporter:
     edges: []
     weights: []
     secondaryTextures: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      ammoball_0: -203555376115933631
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

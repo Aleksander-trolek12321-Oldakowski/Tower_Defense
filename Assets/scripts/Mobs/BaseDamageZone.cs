@@ -35,6 +35,6 @@ public class BaseDamageZone : NetworkBehaviour
             Debug.Log($"[BaseDamageZone] Enemy {enemy.name} dealt {damage} damage to base");
         }
 
-        enemy.RPC_TakeDamage(1000f); // Duża liczba aby na pewno zabiło
+        enemy.RPC_TakeDamage(1000f);
     }
 }

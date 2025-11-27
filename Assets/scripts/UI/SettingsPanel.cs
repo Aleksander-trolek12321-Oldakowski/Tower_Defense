@@ -1,19 +1,15 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace UI
 {
     public class SettingsPanel : MonoBehaviour
     {
-        public GameObject panel;
+        public string menuSceneName = "Menu";
 
-        public void Toggle()
+        public void ChangeScene()
         {
-            if (panel == null) { Debug.LogWarning("[SettingsPanel] panel not assigned!"); return; }
-            panel.SetActive(!panel.activeSelf);
-            Debug.Log("[SettingsPanel] Toggle -> active = " + panel.activeSelf);
+            SceneManager.LoadScene(menuSceneName);
         }
-
-        public void Open() { if (panel != null) panel.SetActive(true); }
-        public void Close() { if (panel != null) panel.SetActive(false); }
     }
 }

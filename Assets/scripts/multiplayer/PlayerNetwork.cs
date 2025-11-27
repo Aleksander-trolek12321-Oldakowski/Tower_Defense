@@ -405,19 +405,80 @@ namespace Networking
         {
             if (!Runner.IsServer) return;
 
-            Debug.Log($"[RPC_RequestSpawnUnit] Received from {info.Source} for unit {unitIndex} at {worldPos}");
+            var srcPlayerRef = info.Source;
+            PlayerNetwork pn = null;
+            NetworkObject playerObj = null;
 
-            // Znajdź PlayerNetwork gracza
-            PlayerNetwork pn = FindPlayerNetwork(info.Source);
+            if (srcPlayerRef != PlayerRef.None)
+            {
+                try
+                {
+                    playerObj = Runner.GetPlayerObject(srcPlayerRef);
+                }
+                catch { playerObj = null; }
+
+                if (playerObj == null)
+                {
+                    try
+                    {
+                        if (Networking.FusionNetworkManager.PlayerObjects != null)
+                        {
+                            Networking.FusionNetworkManager.PlayerObjects.TryGetValue(srcPlayerRef, out playerObj);
+                        }
+                    }
+                    catch { playerObj = null; }
+                }
+
+                if (playerObj != null)
+                    pn = playerObj.GetComponent<PlayerNetwork>();
+            }
+
             if (pn == null)
             {
-                Debug.LogError($"[RPC_RequestSpawnUnit] Could not find PlayerNetwork for {info.Source}");
+                var allPns = FindObjectsOfType<PlayerNetwork>();
+                foreach (var p in allPns)
+                {
+                    if (p == null) continue;
+                    try
+                    {
+                        if (p.Object != null && srcPlayerRef != PlayerRef.None && p.Object.InputAuthority == srcPlayerRef)
+                        {
+                            pn = p;
+                            break;
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            if (pn == null && srcPlayerRef == PlayerRef.None)
+            {
+                var allPns = FindObjectsOfType<PlayerNetwork>();
+                foreach (var p in allPns)
+                {
+                    if (p == null) continue;
+                    try
+                    {
+                        if (p.Object != null && p.Object.HasInputAuthority)
+                        {
+                            pn = p;
+                            break;
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            if (pn == null)
+            {
+                Debug.Log("[RPC_RequestSpawnUnit] sender has no PlayerNetwork");
                 return;
             }
 
+            // --- reszta logiki jak była ---
             if (pn.Team != 1)
             {
-                Debug.Log($"[RPC_RequestSpawnUnit] denied: not attacker (team {pn.Team})");
+                Debug.Log("[RPC_RequestSpawnUnit] denied: not attacker");
                 return;
             }
 
@@ -428,61 +489,10 @@ namespace Networking
                 return;
             }
 
-            // Odejmij pieniądze
             pn.Money -= cost;
+            GamePlayManager.Instance.SpawnUnitByIndex(unitIndex, worldPos, pn.Team, srcPlayerRef);
 
-            // UŻYJ GamePlayManager DO SPAWNU FALI
-            if (GamePlayManager.Instance != null)
-            {
-                GamePlayManager.Instance.SpawnWaveByIndex(unitIndex, worldPos, pn.Team, info.Source);
-                Debug.Log($"[RPC_RequestSpawnUnit] Spawned wave of units via GamePlayManager");
-            }
-            else
-            {
-                Debug.LogError("[RPC_RequestSpawnUnit] GamePlayManager.Instance is null!");
-            }
-
-            Debug.Log($"[RPC_RequestSpawnUnit] requested wave of units {unitIndex} at {worldPos} for player {info.Source}. Money left: {pn.Money}");
-        }
-
-        private PlayerNetwork FindPlayerNetwork(PlayerRef playerRef)
-        {
-            NetworkObject playerObj = null;
-            PlayerNetwork pn = null;
-
-            try
-            {
-                playerObj = Runner.GetPlayerObject(playerRef);
-                if (playerObj != null)
-                {
-                    pn = playerObj.GetComponent<PlayerNetwork>();
-                    if (pn != null) return pn;
-                }
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogWarning($"[PlayerNetwork] GetPlayerObject failed: {ex.Message}");
-            }
-
-            if (FusionNetworkManager.PlayerObjects != null)
-            {
-                if (FusionNetworkManager.PlayerObjects.TryGetValue(playerRef, out playerObj))
-                {
-                    pn = playerObj?.GetComponent<PlayerNetwork>();
-                    if (pn != null) return pn;
-                }
-            }
-
-            var allPlayerNetworks = FindObjectsOfType<PlayerNetwork>();
-            foreach (var player in allPlayerNetworks)
-            {
-                if (player.Object != null && player.Object.InputAuthority == playerRef)
-                {
-                    return player;
-                }
-            }
-
-            return null;
+            Debug.Log($"[RPC_RequestSpawnUnit] spawned unit {unitIndex} at {worldPos} for player {srcPlayerRef}. Money left: {pn.Money}");
         }
 
         [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
@@ -814,6 +824,84 @@ namespace Networking
 
             AssignCanvasSettingsForLocalUI();
         }
+
+        public void RequestEndMatch()
+        {
+            if (this.Object != null && this.Object.HasInputAuthority)
+            {
+                RPC_RequestEndMatch();
+                return;
+            }
+
+            var pns = FindObjectsOfType<PlayerNetwork>();
+            foreach (var pn in pns)
+            {
+                if (pn == null) continue;
+                try
+                {
+                    if (pn.Object != null && pn.Object.HasInputAuthority)
+                    {
+                        pn.RPC_RequestEndMatch();
+                        return;
+                    }
+                }
+                catch { }
+            }
+
+            Debug.LogWarning("[PlayerNetwork] RequestEndMatch: nie znalazłem PlayerNetwork z HasInputAuthority — nie wysyłam RPC.");
+        }
+
+        [Rpc(sources: RpcSources.InputAuthority, targets: RpcTargets.StateAuthority)]
+        public void RPC_RequestEndMatch(RpcInfo info = default)
+        {
+            if (!Runner.IsServer)
+            {
+                Debug.LogWarning("[RPC_RequestEndMatch] Not server - ignoring.");
+                return;
+            }
+
+            PlayerRef src = info.Source;
+            NetworkObject playerObj = null;
+
+            try { playerObj = Runner.GetPlayerObject(src); } catch { playerObj = null; }
+
+            if (playerObj == null)
+            {
+                try
+                {
+                    if (Networking.FusionNetworkManager.PlayerObjects != null)
+                        Networking.FusionNetworkManager.PlayerObjects.TryGetValue(src, out playerObj);
+                }
+                catch { playerObj = null; }
+            }
+
+            if (playerObj == null)
+            {
+                Debug.LogError($"[RPC_RequestEndMatch] Could not find PlayerNetwork for {src}. Aborting end-match request.");
+                return;
+            }
+
+            var pn = playerObj.GetComponent<PlayerNetwork>();
+            if (pn == null)
+            {
+                Debug.LogError($"[RPC_RequestEndMatch] PlayerObject for {src} has no PlayerNetwork component. Aborting.");
+                return;
+            }
+
+            bool defendersWin = (pn.Team == 1) ? false : true;
+            defendersWin = pn.Team == 0;
+
+            if (GameRoundManager.Instance != null)
+            {
+                GameRoundManager.Instance.EndGame(defendersWin);
+                Debug.Log($"[RPC_RequestEndMatch] Server accepted end-match request from {src} (team={pn.Team}) -> defendersWin={defendersWin}");
+            }
+            else
+            {
+                Debug.LogError("[RPC_RequestEndMatch] GameRoundManager.Instance == null on server.");
+            }
+        }
+
 
 
         // Other callbacks and stubs unchanged...

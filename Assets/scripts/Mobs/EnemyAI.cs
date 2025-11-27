@@ -15,6 +15,10 @@ public class EnemyAI : NetworkBehaviour
     [Networked] public int SpriteIndex { get; set; } = 0;
     [Networked] public bool GhostVisible { get; set; } = true;
 
+    // DODANE: Śledzenie nagród
+    [Networked] public bool HalfwayRewardGiven { get; set; }
+    [Networked] public bool BaseAttackRewardGiven { get; set; }
+
     private Rigidbody2D rb;
     private PathManager currentPath;
     private int currentWaypointIndex = 0;
@@ -60,16 +64,16 @@ public class EnemyAI : NetworkBehaviour
         switch (type)
         {
             case EnemyType.Werewolf:
-                HP = 2f; Speed = 3f; Attack = 0.5f;
+                HP = 5f; Speed = 3f; Attack = 2f;
                 break;
             case EnemyType.Zombie:
-                HP = 4f; Speed = 2f; Attack = 1f;
+                HP = 3f; Speed = 1.75f; Attack = 1f;
                 break;
             case EnemyType.Ork:
-                HP = 8f; Speed = 1f; Attack = 2f;
+                HP = 10f; Speed = 1f; Attack = 4f;
                 break;
             case EnemyType.Ghost:
-                HP = 1f; Speed = 8f; Attack = 1f;
+                HP = 2f; Speed = 6f; Attack = 2f;
                 break;
             default:
                 HP = 1f; Speed = 1f; Attack = 1f;
@@ -228,11 +232,29 @@ public class EnemyAI : NetworkBehaviour
         NetworkedPosition = newPos;
     }
 
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        if (!Runner.IsServer) return;
+
+        if (other.CompareTag("HalfwayTrigger") && !HalfwayRewardGiven)
+        {
+            HalfwayRewardGiven = true;
+            GameRoundManager.Instance?.RewardAttackerForDistance(true);
+            Debug.Log($"[EnemyAI] Halfway reward given for {name}");
+        }
+
+        if (other.CompareTag("BaseAttackTrigger") && !BaseAttackRewardGiven)
+        {
+            BaseAttackRewardGiven = true;
+            GameRoundManager.Instance?.RewardAttackerForDistance(false);
+            Debug.Log($"[EnemyAI] Base attack reward given for {name}");
+        }
+    }
+
     private int GetBranchToUse()
     {
         if (currentPath == null || !currentPath.HasBranches) return 0;
         
-        // Sprawdź czy jest wymuszona gałąź dla tej ścieżki
         int forcedBranch = PathBranchGate.GetForcedBranchForPath(currentPath);
         
         if (forcedBranch >= 0 && forcedBranch < currentPath.GetBranchCount())
@@ -290,7 +312,11 @@ public class EnemyAI : NetworkBehaviour
     {
         if (!Runner.IsServer) return;
         HP -= dmg;
+        
         if (HP <= 0)
+        {
+            GameRoundManager.Instance?.RewardDefenderForKill();
             Runner.Despawn(Object);
+        }
     }
 }

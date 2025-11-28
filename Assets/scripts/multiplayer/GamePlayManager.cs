@@ -268,7 +268,7 @@ namespace Networking
                 if (!hit.CompareTag("Unit")) continue;
                 var ai = hit.GetComponent<EnemyAI>();
                 if (ai == null) continue;
-                ai.IsFrozen = true; // networked -> replicuje
+                ai.IsFrozen = true;
                 frozen.Add(ai);
                 Debug.Log($"[GamePlayManager] Freeze applied to {ai.name}");
             }

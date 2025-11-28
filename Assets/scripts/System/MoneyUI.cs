@@ -23,7 +23,7 @@ public class MoneyUI : MonoBehaviour
     {
         if (moneyText != null)
         {
-            moneyText.text = $"Money: {money}";
+            moneyText.text = $"{money}";
         }
     }
 }

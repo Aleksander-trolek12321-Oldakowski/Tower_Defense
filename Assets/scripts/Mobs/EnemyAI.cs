@@ -15,7 +15,6 @@ public class EnemyAI : NetworkBehaviour
     [Networked] public int SpriteIndex { get; set; } = 0;
     [Networked] public bool GhostVisible { get; set; } = true;
 
-    // DODANE: Śledzenie nagród
     [Networked] public bool HalfwayRewardGiven { get; set; }
     [Networked] public bool BaseAttackRewardGiven { get; set; }
 
@@ -29,6 +28,10 @@ public class EnemyAI : NetworkBehaviour
     public SpriteRenderer spriteRenderer;
     public Animator animator;
     public Sprite[] typeSprites;
+
+    [Header("Frozen visuals")]
+    public GameObject frozenSpriteChild;
+    private bool lastObservedFrozen = false;
 
     public override void Spawned()
     {
@@ -45,8 +48,6 @@ public class EnemyAI : NetworkBehaviour
         if (spriteRenderer == null)
             spriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
-        Debug.Log($"[EnemyAI] Spawned (IsServer={(Runner!=null?Runner.IsServer:false)}) Type={Type} SpriteIndex={SpriteIndex} pos={transform.position}");
-
         if (Runner != null && Runner.IsServer && Type == EnemyType.Ghost)
         {
             StartCoroutine(GhostCycleCoroutine());
@@ -56,6 +57,13 @@ public class EnemyAI : NetworkBehaviour
             NetworkedPosition = transform.position;
 
         ApplySpriteFromIndex();
+
+        if (frozenSpriteChild != null)
+        {
+            frozenSpriteChild.SetActive(IsFrozen);
+        }
+
+        lastObservedFrozen = IsFrozen;
     }
 
     public void InitStats(EnemyType type)
@@ -64,16 +72,16 @@ public class EnemyAI : NetworkBehaviour
         switch (type)
         {
             case EnemyType.Werewolf:
-                HP = 5f; Speed = 3f; Attack = 2f;
+                HP = 2f; Speed = 3f; Attack = 0.5f;
                 break;
             case EnemyType.Zombie:
-                HP = 3f; Speed = 1.75f; Attack = 1f;
+                HP = 4f; Speed = 2f; Attack = 1f;
                 break;
             case EnemyType.Ork:
-                HP = 10f; Speed = 1f; Attack = 4f;
+                HP = 8f; Speed = 1f; Attack = 2f;
                 break;
             case EnemyType.Ghost:
-                HP = 2f; Speed = 6f; Attack = 2f;
+                HP = 1f; Speed = 8f; Attack = 1f;
                 break;
             default:
                 HP = 1f; Speed = 1f; Attack = 1f;
@@ -174,6 +182,8 @@ public class EnemyAI : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        HandleFrozenStateChange();
+
         if (Runner != null && Runner.IsServer)
         {
             MoveOnServer();
@@ -188,6 +198,9 @@ public class EnemyAI : NetworkBehaviour
             Vector2 newPos = Vector2.Lerp(cur, target, interp);
             transform.position = newPos;
         }
+
+        if (frozenSpriteChild != null && frozenSpriteChild.activeSelf != IsFrozen)
+            frozenSpriteChild.SetActive(IsFrozen);
 
         ApplySpriteFromIndex();
     }
@@ -232,38 +245,18 @@ public class EnemyAI : NetworkBehaviour
         NetworkedPosition = newPos;
     }
 
-    private void OnTriggerEnter2D(Collider2D other)
-    {
-        if (!Runner.IsServer) return;
-
-        if (other.CompareTag("HalfwayTrigger") && !HalfwayRewardGiven)
-        {
-            HalfwayRewardGiven = true;
-            GameRoundManager.Instance?.RewardAttackerForDistance(true);
-            Debug.Log($"[EnemyAI] Halfway reward given for {name}");
-        }
-
-        if (other.CompareTag("BaseAttackTrigger") && !BaseAttackRewardGiven)
-        {
-            BaseAttackRewardGiven = true;
-            GameRoundManager.Instance?.RewardAttackerForDistance(false);
-            Debug.Log($"[EnemyAI] Base attack reward given for {name}");
-        }
-    }
-
     private int GetBranchToUse()
     {
         if (currentPath == null || !currentPath.HasBranches) return 0;
-        
+
         int forcedBranch = PathBranchGate.GetForcedBranchForPath(currentPath);
-        
+
         if (forcedBranch >= 0 && forcedBranch < currentPath.GetBranchCount())
         {
             Debug.Log($"[EnemyAI] Using forced branch {forcedBranch} for path {currentPath.name}");
             return forcedBranch;
         }
-        
-        Debug.Log($"[EnemyAI] Using default branch 0 for path {currentPath.name}");
+
         return 0;
     }
 
@@ -272,7 +265,7 @@ public class EnemyAI : NetworkBehaviour
         if (currentPath == null || !currentPath.HasBranches) return;
 
         var newBranch = currentPath.GetBranch(branchIndex);
-        if (newBranch == null) 
+        if (newBranch == null)
         {
             Debug.LogWarning($"[EnemyAI] Branch {branchIndex} is null for path {currentPath.name}");
             return;
@@ -296,7 +289,7 @@ public class EnemyAI : NetworkBehaviour
         if (!currentPath.HasBranches) return;
 
         Debug.Log($"[EnemyAI] RPC_SetBranch received -> branch {branchIndex} for enemy {name} on path {currentPath.name}");
-        
+
         if (branchIndex >= 0 && branchIndex < currentPath.GetBranchCount())
         {
             ApplyBranchSelection(branchIndex);
@@ -307,16 +300,54 @@ public class EnemyAI : NetworkBehaviour
         }
     }
 
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        if (!Runner.IsServer) return;
+
+        if (other.CompareTag("HalfwayTrigger") && !HalfwayRewardGiven)
+        {
+            HalfwayRewardGiven = true;
+            GameRoundManager.Instance?.RewardAttackerForDistance(true);
+            Debug.Log($"[EnemyAI] Halfway reward given for {name}");
+        }
+
+        if (other.CompareTag("BaseAttackTrigger") && !BaseAttackRewardGiven)
+        {
+            BaseAttackRewardGiven = true;
+            GameRoundManager.Instance?.RewardAttackerForDistance(false);
+            Debug.Log($"[EnemyAI] Base attack reward given for {name}");
+        }
+    }
+
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
     public void RPC_TakeDamage(float dmg)
     {
         if (!Runner.IsServer) return;
         HP -= dmg;
-        
         if (HP <= 0)
-        {
-            GameRoundManager.Instance?.RewardDefenderForKill();
             Runner.Despawn(Object);
+    }
+
+    private void HandleFrozenStateChange()
+    {
+        if (lastObservedFrozen == IsFrozen) return;
+
+        lastObservedFrozen = IsFrozen;
+
+        if (frozenSpriteChild != null)
+        {
+            frozenSpriteChild.SetActive(IsFrozen);
+
+            var sr = frozenSpriteChild.GetComponent<SpriteRenderer>();
+            if (sr != null)
+            {
+            }
         }
+        if (animator != null)
+        {
+            animator.enabled = !IsFrozen;
+        }
+
+        Debug.Log($"[EnemyAI] {name} frozen state changed -> {IsFrozen}");
     }
 }

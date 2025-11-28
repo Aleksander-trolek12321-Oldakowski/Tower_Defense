@@ -5,8 +5,6 @@ namespace debug
     public class CameraStabilizer : MonoBehaviour
     {
         public float fixedZ = -10f;              // typical 2D camera Z
-        public float minOrtho = 3f;
-        public float maxOrtho = 12f;
         public bool enforceEveryFrame = true;
         public bool debugLogs = true;
 
@@ -38,17 +36,6 @@ namespace debug
                 if (debugLogs) Debug.Log($"[CameraStabilizer] Fixing camera.z from {pos.z:F3} to {fixedZ:F3} (camera: {cam.name})");
                 pos.z = fixedZ;
                 cam.transform.position = pos;
-            }
-
-            // clamp orthographic size
-            if (cam.orthographic)
-            {
-                if (cam.orthographicSize < minOrtho || cam.orthographicSize > maxOrtho)
-                {
-                    float old = cam.orthographicSize;
-                    cam.orthographicSize = Mathf.Clamp(cam.orthographicSize, minOrtho, maxOrtho);
-                    if (debugLogs) Debug.Log($"[CameraStabilizer] Clamped orthographicSize {old:F3} -> {cam.orthographicSize:F3}");
-                }
             }
 
             // make sure near/far planes are reasonable

@@ -8690,15 +8690,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2197161429156027542, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
       propertyPath: 'towerCosts.Array.data[0]'
-      value: 50
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2197161429156027542, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
       propertyPath: 'towerCosts.Array.data[1]'
-      value: 100
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2197161429156027542, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
       propertyPath: 'towerCosts.Array.data[2]'
-      value: 75
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2197161429156027542, guid: 7ac1f2f2b970ecd4fa08050898bc1d88, type: 3}
       propertyPath: 'towerSpots.Array.data[0]'

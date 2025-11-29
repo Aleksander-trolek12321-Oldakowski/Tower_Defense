@@ -33,6 +33,8 @@ public class EnemyAI : NetworkBehaviour
     public GameObject frozenSpriteChild;
     private bool lastObservedFrozen = false;
 
+    private bool lastObservedFrozenServer = false;
+
     public override void Spawned()
     {
         base.Spawned();
@@ -64,6 +66,7 @@ public class EnemyAI : NetworkBehaviour
         }
 
         lastObservedFrozen = IsFrozen;
+        lastObservedFrozenServer = IsFrozen;
     }
 
     public void InitStats(EnemyType type)
@@ -72,16 +75,16 @@ public class EnemyAI : NetworkBehaviour
         switch (type)
         {
             case EnemyType.Werewolf:
-                HP = 2f; Speed = 3f; Attack = 0.5f;
+                HP = 4f; Speed = 3.5f; Attack = 2f;
                 break;
             case EnemyType.Zombie:
-                HP = 4f; Speed = 2f; Attack = 1f;
+                HP = 2f; Speed = 2.5f; Attack = 1f;
                 break;
             case EnemyType.Ork:
-                HP = 8f; Speed = 1f; Attack = 2f;
+                HP = 10f; Speed = 1.5f; Attack = 4f;
                 break;
             case EnemyType.Ghost:
-                HP = 1f; Speed = 8f; Attack = 1f;
+                HP = 2f; Speed = 6.5f; Attack = 1f;
                 break;
             default:
                 HP = 1f; Speed = 1f; Attack = 1f;
@@ -183,6 +186,15 @@ public class EnemyAI : NetworkBehaviour
     public override void FixedUpdateNetwork()
     {
         HandleFrozenStateChange();
+
+        if (Runner != null && Runner.IsServer)
+        {
+            if (lastObservedFrozenServer != IsFrozen)
+            {
+                lastObservedFrozenServer = IsFrozen;
+                RPC_SyncFrozen(IsFrozen);
+            }
+        }
 
         if (Runner != null && Runner.IsServer)
         {
@@ -328,6 +340,22 @@ public class EnemyAI : NetworkBehaviour
             Runner.Despawn(Object);
     }
 
+    [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+    private void RPC_SyncFrozen(bool isFrozen, RpcInfo info = default)
+    {
+        if (frozenSpriteChild != null)
+        {
+            frozenSpriteChild.SetActive(isFrozen);
+        }
+
+        if (animator != null)
+        {
+            animator.enabled = !isFrozen;
+        }
+
+        lastObservedFrozen = isFrozen;
+    }
+
     private void HandleFrozenStateChange()
     {
         if (lastObservedFrozen == IsFrozen) return;
@@ -337,11 +365,6 @@ public class EnemyAI : NetworkBehaviour
         if (frozenSpriteChild != null)
         {
             frozenSpriteChild.SetActive(IsFrozen);
-
-            var sr = frozenSpriteChild.GetComponent<SpriteRenderer>();
-            if (sr != null)
-            {
-            }
         }
         if (animator != null)
         {

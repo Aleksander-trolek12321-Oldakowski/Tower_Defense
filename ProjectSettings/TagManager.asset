@@ -6,6 +6,9 @@ TagManager:
   tags:
   - Unit
   - Turret
+  - HalfwayTrigger
+  - BaseAttackTrigger
+  - UIRoot
   layers:
   - Default
   - TransparentFX

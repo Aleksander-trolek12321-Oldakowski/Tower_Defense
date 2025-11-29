@@ -1,6 +1,6 @@
+using System.Collections;
 using Fusion;
 using UnityEngine;
-using System.Collections;
 
 [RequireComponent(typeof(Rigidbody2D))]
 public class EnemyAI : NetworkBehaviour
@@ -15,42 +15,55 @@ public class EnemyAI : NetworkBehaviour
     [Networked] public int SpriteIndex { get; set; } = 0;
     [Networked] public bool GhostVisible { get; set; } = true;
 
+    [Networked] public bool HalfwayRewardGiven { get; set; }
+    [Networked] public bool BaseAttackRewardGiven { get; set; }
+
     private Rigidbody2D rb;
-    private PathManager path;
+    private PathManager currentPath;
     private int currentWaypointIndex = 0;
     private bool reachedEnd = false;
 
-    private PathManager currentPath;
-    private bool waitingForBranchChoice = false;
-
-    [Header("Visuals")]
+    [Header("Visuals (fallback)")]
     public GameObject visualsRoot;
     public SpriteRenderer spriteRenderer;
     public Animator animator;
     public Sprite[] typeSprites;
 
+    [Header("Frozen visuals")]
+    public GameObject frozenSpriteChild;
+    private bool lastObservedFrozen = false;
+
     public override void Spawned()
     {
+        base.Spawned();
+
         rb = GetComponent<Rigidbody2D>();
         if (rb != null)
         {
             rb.gravityScale = 0f;
             rb.constraints = RigidbodyConstraints2D.FreezeRotation;
-            rb.isKinematic = !Runner.IsServer;
+            rb.isKinematic = !(Runner != null && Runner.IsServer);
         }
+
+        if (spriteRenderer == null)
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
         if (Runner != null && Runner.IsServer && Type == EnemyType.Ghost)
         {
             StartCoroutine(GhostCycleCoroutine());
         }
 
-        if (spriteRenderer == null)
-            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        if (Runner != null && Runner.IsServer)
+            NetworkedPosition = transform.position;
 
         ApplySpriteFromIndex();
 
-        if (Runner != null && Runner.IsServer)
-            NetworkedPosition = transform.position;
+        if (frozenSpriteChild != null)
+        {
+            frozenSpriteChild.SetActive(IsFrozen);
+        }
+
+        lastObservedFrozen = IsFrozen;
     }
 
     public void InitStats(EnemyType type)
@@ -70,18 +83,59 @@ public class EnemyAI : NetworkBehaviour
             case EnemyType.Ghost:
                 HP = 1f; Speed = 8f; Attack = 1f;
                 break;
+            default:
+                HP = 1f; Speed = 1f; Attack = 1f;
+                break;
         }
+
+        if (Runner != null && Runner.IsServer)
+        {
+            SpriteIndex = (int)type;
+            Debug.Log($"[EnemyAI] InitStats (server): type={type} -> SpriteIndex={SpriteIndex}");
+        }
+        else
+        {
+            SpriteIndex = (int)type;
+            Debug.Log($"[EnemyAI] InitStats (client/local): tentative SpriteIndex={SpriteIndex}");
+        }
+
+        ApplySpriteFromIndex();
     }
 
     void ApplySpriteFromIndex()
     {
         if (spriteRenderer == null) return;
+
         var mgr = Networking.GamePlayManager.Instance;
         if (mgr != null && mgr.enemyTypeSprites != null && SpriteIndex >= 0 && SpriteIndex < mgr.enemyTypeSprites.Length)
         {
             var s = mgr.enemyTypeSprites[SpriteIndex];
-            if (s != null)
+            if (s != null && spriteRenderer.sprite != s)
+            {
                 spriteRenderer.sprite = s;
+                return;
+            }
+        }
+
+        if (typeSprites != null && SpriteIndex >= 0 && SpriteIndex < typeSprites.Length)
+        {
+            var s2 = typeSprites[SpriteIndex];
+            if (s2 != null && spriteRenderer.sprite != s2)
+            {
+                spriteRenderer.sprite = s2;
+                return;
+            }
+        }
+
+        int tIndex = (int)Type;
+        if (typeSprites != null && tIndex >= 0 && tIndex < typeSprites.Length)
+        {
+            var s3 = typeSprites[tIndex];
+            if (s3 != null && spriteRenderer.sprite != s3)
+            {
+                spriteRenderer.sprite = s3;
+                return;
+            }
         }
     }
 
@@ -96,32 +150,6 @@ public class EnemyAI : NetworkBehaviour
         }
     }
 
-    int GetLocalPlayerTeam()
-    {
-        var localPn = Networking.PlayerNetwork.Local;
-        if (localPn != null) return localPn.Team;
-
-        var nbs = FindObjectsOfType<NetworkBehaviour>();
-        foreach (var nb in nbs)
-        {
-            var t = nb.GetType();
-            if (t.Name == "PlayerNetwork")
-            {
-                var prop = t.GetProperty("Team");
-                if (prop != null)
-                {
-                    try
-                    {
-                        var val = prop.GetValue(nb);
-                        if (val is int) return (int)val;
-                    }
-                    catch { }
-                }
-            }
-        }
-        return -1;
-    }
-
     public void SetInitialNetworkPosition(Vector2 pos)
     {
         if (Runner != null && Runner.IsServer)
@@ -133,11 +161,9 @@ public class EnemyAI : NetworkBehaviour
 
     public void SetPath(PathManager manager)
     {
-        path = manager;
         currentPath = manager;
         currentWaypointIndex = 0;
         reachedEnd = false;
-        waitingForBranchChoice = false;
 
         if (currentPath != null && currentPath.GetWaypoint(0) != null)
         {
@@ -156,6 +182,8 @@ public class EnemyAI : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        HandleFrozenStateChange();
+
         if (Runner != null && Runner.IsServer)
         {
             MoveOnServer();
@@ -171,7 +199,86 @@ public class EnemyAI : NetworkBehaviour
             transform.position = newPos;
         }
 
+        if (frozenSpriteChild != null && frozenSpriteChild.activeSelf != IsFrozen)
+            frozenSpriteChild.SetActive(IsFrozen);
+
         ApplySpriteFromIndex();
+    }
+
+    private void MoveOnServer()
+    {
+        if (rb == null)
+        {
+            rb = GetComponent<Rigidbody2D>();
+            if (rb == null) return;
+        }
+
+        if (currentPath == null || reachedEnd || IsFrozen) return;
+
+        var waypoint = currentPath.GetWaypoint(currentWaypointIndex);
+        if (waypoint == null) return;
+
+        Vector2 dir = ((Vector2)waypoint.position - rb.position);
+        float dist = dir.magnitude;
+
+        if (dist < 0.1f)
+        {
+            currentWaypointIndex++;
+
+            if (currentWaypointIndex >= currentPath.GetWaypointCount())
+            {
+                if (currentPath.HasBranches)
+                {
+                    int branchToUse = GetBranchToUse();
+                    ApplyBranchSelection(branchToUse);
+                    return;
+                }
+
+                reachedEnd = true;
+                return;
+            }
+        }
+
+        dir.Normalize();
+        Vector2 newPos = rb.position + dir * Speed * (float)Runner.DeltaTime;
+        rb.MovePosition(newPos);
+        NetworkedPosition = newPos;
+    }
+
+    private int GetBranchToUse()
+    {
+        if (currentPath == null || !currentPath.HasBranches) return 0;
+
+        int forcedBranch = PathBranchGate.GetForcedBranchForPath(currentPath);
+
+        if (forcedBranch >= 0 && forcedBranch < currentPath.GetBranchCount())
+        {
+            Debug.Log($"[EnemyAI] Using forced branch {forcedBranch} for path {currentPath.name}");
+            return forcedBranch;
+        }
+
+        return 0;
+    }
+
+    private void ApplyBranchSelection(int branchIndex)
+    {
+        if (currentPath == null || !currentPath.HasBranches) return;
+
+        var newBranch = currentPath.GetBranch(branchIndex);
+        if (newBranch == null)
+        {
+            Debug.LogWarning($"[EnemyAI] Branch {branchIndex} is null for path {currentPath.name}");
+            return;
+        }
+
+        int nearest = newBranch.FindWaypointIndexByPosition(transform.position, 1.0f);
+        if (nearest < 0) nearest = 0;
+
+        currentPath = newBranch;
+        currentWaypointIndex = nearest;
+        reachedEnd = false;
+
+        Debug.Log($"[EnemyAI] ApplyBranchSelection -> switched to {currentPath.name} startIndex={currentWaypointIndex} (enemy={name})");
     }
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -181,63 +288,35 @@ public class EnemyAI : NetworkBehaviour
         if (currentPath == null) return;
         if (!currentPath.HasBranches) return;
 
-        var newBranch = currentPath.GetBranch(branchIndex);
-        if (newBranch == null) return;
+        Debug.Log($"[EnemyAI] RPC_SetBranch received -> branch {branchIndex} for enemy {name} on path {currentPath.name}");
 
-        currentPath = newBranch;
-        currentWaypointIndex = 0;
-        reachedEnd = false;
-        waitingForBranchChoice = false;
-
-        var wp0 = currentPath.GetWaypoint(0);
-        if (wp0 != null)
+        if (branchIndex >= 0 && branchIndex < currentPath.GetBranchCount())
         {
-            Vector2 startPos = wp0.position;
-            rb.position = startPos;
-            NetworkedPosition = startPos;
+            ApplyBranchSelection(branchIndex);
+        }
+        else
+        {
+            Debug.LogWarning($"[EnemyAI] RPC_SetBranch: branch index {branchIndex} is out of range for path {currentPath.name}");
         }
     }
 
-    private void MoveOnServer()
+    private void OnTriggerEnter2D(Collider2D other)
     {
-        if (currentPath == null || reachedEnd || waitingForBranchChoice) return;
+        if (!Runner.IsServer) return;
 
-        var waypoint = currentPath.GetWaypoint(currentWaypointIndex);
-        if (waypoint == null) return;
-
-        Vector2 dir = ((Vector2)waypoint.position - rb.position);
-        float dist = dir.magnitude;
-        if (IsFrozen) return;   
-
-        if (path == null || reachedEnd) return;
-        if (dist < 0.1f)
+        if (other.CompareTag("HalfwayTrigger") && !HalfwayRewardGiven)
         {
-            currentWaypointIndex++;
-
-            if (currentWaypointIndex >= currentPath.GetWaypointCount())
-            {
-                if (currentPath.HasBranches)
-                {
-                    waitingForBranchChoice = true;
-
-                    PathBranchGate.NotifyEnemyArrived(this, currentPath);
-                    return;
-                }
-
-                reachedEnd = true;
-                return;
-            }
-
-            waypoint = currentPath.GetWaypoint(currentWaypointIndex);
-            if (waypoint == null) return;
-
-            dir = ((Vector2)waypoint.position - rb.position);
+            HalfwayRewardGiven = true;
+            GameRoundManager.Instance?.RewardAttackerForDistance(true);
+            Debug.Log($"[EnemyAI] Halfway reward given for {name}");
         }
 
-        dir.Normalize();
-        Vector2 newPos = rb.position + dir * Speed * (float)Runner.DeltaTime;
-        rb.MovePosition(newPos);
-        NetworkedPosition = newPos;
+        if (other.CompareTag("BaseAttackTrigger") && !BaseAttackRewardGiven)
+        {
+            BaseAttackRewardGiven = true;
+            GameRoundManager.Instance?.RewardAttackerForDistance(false);
+            Debug.Log($"[EnemyAI] Base attack reward given for {name}");
+        }
     }
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -246,8 +325,29 @@ public class EnemyAI : NetworkBehaviour
         if (!Runner.IsServer) return;
         HP -= dmg;
         if (HP <= 0)
-        {
             Runner.Despawn(Object);
+    }
+
+    private void HandleFrozenStateChange()
+    {
+        if (lastObservedFrozen == IsFrozen) return;
+
+        lastObservedFrozen = IsFrozen;
+
+        if (frozenSpriteChild != null)
+        {
+            frozenSpriteChild.SetActive(IsFrozen);
+
+            var sr = frozenSpriteChild.GetComponent<SpriteRenderer>();
+            if (sr != null)
+            {
+            }
         }
+        if (animator != null)
+        {
+            animator.enabled = !IsFrozen;
+        }
+
+        Debug.Log($"[EnemyAI] {name} frozen state changed -> {IsFrozen}");
     }
 }

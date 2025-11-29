@@ -107,8 +107,8 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 5
-  m_Sprite: {fileID: -6400726459961211001, guid: 8bf032bf3bddd4b40a5dd522d62dca93, type: 3}
-  m_Color: {r: 0.6, g: 0.4156863, b: 0.22352941, a: 1}
+  m_Sprite: {fileID: -2055997941125772693, guid: 58dc5bbef0a3ba343bd9535468a0931c, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -129,7 +129,6 @@ GameObject:
   - component: {fileID: 2783455975192642712}
   - component: {fileID: 1543973467605308733}
   - component: {fileID: 2246526341309868983}
-  - component: {fileID: 5549738832253755540}
   m_Layer: 0
   m_Name: ArcherTower
   m_TagString: Turret
@@ -222,29 +221,14 @@ MonoBehaviour:
   turretPivot: {fileID: 2783455975192642712}
   range: 4
   rotateTowardsTarget: 1
+  rotationSpeed: 720
+  rotationOffset: 90
   projectilePrefab:
     RawGuidValue: a3093e1ff7d002f45a75e985abba2eb3
   muzzle: {fileID: 7773905751376890062}
   projectileSpeed: 12
   fireRate: 1
   damage: 1
---- !u!114 &5549738832253755540
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3809223939403615493}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _stateAuthorityChangeErrorCorrectionDelta: 0
-  SyncScale: 0
-  SyncParent: 0
-  _autoAOIOverride: 0
-  DisableSharedModeInterpolation: 0
 --- !u!1 &5516628800861800019
 GameObject:
   m_ObjectHideFlags: 0
@@ -255,7 +239,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3711045991614624830}
   - component: {fileID: 2991342383451334464}
-  - component: {fileID: -972155189553928904}
+  - component: {fileID: 4894169186323729532}
   m_Layer: 0
   m_Name: ArcherTower
   m_TagString: Turret
@@ -296,10 +280,9 @@ MonoBehaviour:
   Flags: 262145
   NestedObjects: []
   NetworkedBehaviours:
-  - {fileID: -972155189553928904}
-  - {fileID: 5549738832253755540}
+  - {fileID: 4894169186323729532}
   ForceRemoteRenderTimeframe: 0
---- !u!114 &-972155189553928904
+--- !u!114 &4894169186323729532
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

@@ -22,7 +22,13 @@ public class EnemySpawner : NetworkBehaviour
 
     public void OnSpawnButtonPressed(int enemyTypeIndex)
     {
-        if (Runner == null) return;
+        Debug.Log($"[EnemySpawner] OnSpawnButtonPressed called with type: {enemyTypeIndex}");
+        
+        if (Runner == null) 
+        {
+            Debug.LogError("[EnemySpawner] Runner is null!");
+            return;
+        }
 
         Vector2 spawnPos = Vector2.zero;
         if (spawnPoint != null) 
@@ -32,15 +38,55 @@ public class EnemySpawner : NetworkBehaviour
         if (defaultCounts != null && enemyTypeIndex >= 0 && enemyTypeIndex < defaultCounts.Length)
             count = Mathf.Max(1, defaultCounts[enemyTypeIndex]);
 
-        RPC_RequestSpawnWave(enemyTypeIndex, spawnPos, count, spawnInterval);
+        var local = Networking.PlayerNetwork.Local;
+        if (local != null && local.Team == 1)
+        {
+            int cost = GamePlayManager.Instance.GetUnitCost(enemyTypeIndex);
+            Debug.Log($"[EnemySpawner] Checking money. Cost: {cost}, Player Money: {local.Money}");
+            
+            if (local.Money >= cost)
+            {
+                Debug.Log($"[EnemySpawner] Money sufficient, calling RPC");
+                RPC_RequestSpawnWave(enemyTypeIndex, spawnPos, count, spawnInterval);
+            }
+            else
+            {
+                Debug.Log($"[EnemySpawner] Not enough money to spawn unit. Cost: {cost}, Money: {local.Money}");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[EnemySpawner] Local player not found or wrong team. Local: {local != null}, Team: {local?.Team}");
+        }
     }
 
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    private void RPC_RequestSpawnWave(int typeIndex, Vector2 spawnPos, int count, float interval)
+    public void RPC_RequestSpawnWave(int typeIndex, Vector2 spawnPos, int count, float interval, RpcInfo info = default)
     {
-        if (!Runner.IsServer) return;
+        Debug.Log($"[EnemySpawner] RPC_RequestSpawnWave received on server. typeIndex: {typeIndex}, from player: {info.Source}");
+
+        if (!Runner.IsServer) 
+        {
+            Debug.LogWarning("[EnemySpawner] RPC called but not on server!");
+            return;
+        }
+
+        var playerObj = Runner.GetPlayerObject(info.Source);
+        var playerNetwork = playerObj?.GetComponent<PlayerNetwork>();
+        if (playerNetwork == null) return;
+
+        int cost = GamePlayManager.Instance.GetUnitCost(typeIndex);
+        if (playerNetwork.Money < cost)
+        {
+            Debug.Log($"[EnemySpawner] Server: Not enough money for player {info.Source}. Cost: {cost}, Money: {playerNetwork.Money}");
+            return;
+        }
+
+        playerNetwork.Money -= cost;
 
         StartCoroutine(SpawnWaveCoroutine(typeIndex, spawnPos, count, interval));
+        
+        Debug.Log($"[EnemySpawner] Spawning wave of {count} units type {typeIndex} for player {info.Source}. Money left: {playerNetwork.Money}");
     }
 
     private IEnumerator SpawnWaveCoroutine(int typeIndex, Vector2 spawnPos, int count, float interval)
@@ -64,13 +110,10 @@ public class EnemySpawner : NetworkBehaviour
             {
                 if (no.TryGetComponent<EnemyAI>(out var ai))
                 {
-                    // Ustawiamy statystyki
                     ai.InitStats((EnemyType)typeIndex);
 
-                    // KLUCZOWE: ustawiamy początkową ścieżkę (główny PathManager z rozgałęzieniami)
                     ai.SetPath(startPath);
 
-                    // Synchronizacja pozycji startowej po sieci
                     ai.SetInitialNetworkPosition(finalPos);
                 }
 

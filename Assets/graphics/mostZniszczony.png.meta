@@ -173,10 +173,10 @@ TextureImporter:
         serializedVersion: 2
         x: 2
         y: 370
-        width: 1132
+        width: 1989
         height: 1226
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       outline: []
       physicsShape: []
@@ -188,31 +188,10 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
-    - serializedVersion: 2
-      name: mostZniszczony_1
-      rect:
-        serializedVersion: 2
-        x: 1040
-        y: 354
-        width: 950
-        height: 1201
-      alignment: 0
-      pivot: {x: 0, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      physicsShape: []
-      tessellationDetail: -1
-      bones: []
-      spriteID: 9af3b2c908cc3b450800000000000000
-      internalID: 6103446772765114281
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
     outline: []
     physicsShape: []
     bones: []
-    spriteID: 
+    spriteID: f745604087e665d4a87a9aae768e04ef
     internalID: 0
     vertices: []
     indices: 

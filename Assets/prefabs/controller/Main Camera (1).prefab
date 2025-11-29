@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 784299553294346846}
   - component: {fileID: 5212622066634779822}
   - component: {fileID: 9185403767554850852}
+  - component: {fileID: 8696522910281403640}
   m_Layer: 0
   m_Name: Main Camera (1)
   m_TagString: MainCamera
@@ -46,7 +47,7 @@ Camera:
   m_GameObject: {fileID: 2793637421958265430}
   m_Enabled: 1
   serializedVersion: 2
-  m_ClearFlags: 2
+  m_ClearFlags: 4
   m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
@@ -68,9 +69,9 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
-  far clip plane: 1000
-  field of view: 34
+  near clip plane: 0.1
+  far clip plane: 5000
+  field of view: 40
   orthographic: 1
   orthographic size: 5
   m_Depth: -1
@@ -172,15 +173,24 @@ MonoBehaviour:
   panSpeed: 1
   dragDeadzone: 5
   minOrthographicSize: 2
-  maxOrthographicSize: 12
+  maxOrthographicSize: 15
   pinchZoomSpeed: 0.02
   mouseWheelZoomSpeed: 2
   doubleClickZoomFactor: 0.5
   doubleClickTime: 0.35
+  doubleClickMaxDistance: 50
   interactableLayerMask:
     serializedVersion: 2
     m_Bits: 4294967295
   tapMaxMovement: 10
+  useMapBounds: 1
+  mapSprite: {fileID: 7958075399078028825, guid: 59a3cd7c46953494cbef0f7e378fc116, type: 3}
+  manualBounds:
+    serializedVersion: 2
+    x: -10
+    y: -10
+    width: 20
+    height: 20
 --- !u!114 &9185403767554850852
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -196,3 +206,16 @@ MonoBehaviour:
   target: {fileID: 5680522507022433022}
   offset: {x: 0, y: 0, z: -10}
   smoothSpeed: 8
+--- !u!114 &8696522910281403640
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2793637421958265430}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1f1d6a95cf9fc4e4baef9f17c9bec1c8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cam: {fileID: 1772263360518773933}

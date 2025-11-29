@@ -14,8 +14,8 @@ namespace Controller
         public Camera cam;
 
         [Header("Pan settings")]
-        public float panSpeed = 1.0f;       // multiplier for pan movement
-        public float dragDeadzone = 6f;     // pixels threshold to start panning
+        public float panSpeed = 1.0f;
+        public float dragDeadzone = 6f;
 
         [Header("Zoom settings")]
         public float minOrthographicSize = 2f;
@@ -23,30 +23,30 @@ namespace Controller
         public float pinchZoomSpeed = 0.02f;
         public float mouseWheelZoomSpeed = 2f;
         public float doubleClickZoomFactor = 0.5f;
-        public float doubleClickTime = 0.35f; // max time between clicks for double-click/tap
+        public float doubleClickTime = 0.35f;
         public float doubleClickMaxDistance = 50f;
 
         [Header("Interaction")]
-        public LayerMask interactableLayerMask = ~0; // which 2D layers to raycast for interactables
-        public float tapMaxMovement = 12f;           // max movement allowed to consider a tap
+        public LayerMask interactableLayerMask = ~0;
+        public float tapMaxMovement = 12f;
 
-        // internal state
-        Vector2 panStartScreenPos;
-        Vector3 panStartCamPos;
-        bool isPanning = false;
+        [Header("Map bounds")]
+        public bool useMapBounds = true;
+        public SpriteRenderer mapSprite;
+        public Rect manualBounds = new Rect(-10, -10, 20, 20);
 
-        // touch state
-        bool isPinching = false;
-        float lastPinchDistance = 0f;
-
-        // potential interactable under pointer at pointer down
-        IInteractable potentialInteractable = null;
-        Vector2 pointerDownScreenPos;
-        bool pointerDownOverUI = false;
-
-        // double-click/tap tracking
-        float lastClickTime = 0f;
-        Vector2 lastClickPos = Vector2.zero;
+        // Internal state
+        private Rect mapWorldBounds;
+        private Vector2 panStartScreenPos;
+        private Vector3 panStartCamPos;
+        private bool isPanning = false;
+        private bool isPinching = false;
+        private float lastPinchDistance = 0f;
+        private IInteractable potentialInteractable = null;
+        private Vector2 pointerDownScreenPos;
+        private bool pointerDownOverUI = false;
+        private float lastClickTime = 0f;
+        private Vector2 lastClickPos = Vector2.zero;
 
         void Reset()
         {
@@ -59,11 +59,17 @@ namespace Controller
             if (cam == null) Debug.LogWarning("[CameraController] No camera assigned or found.");
         }
 
+        void Start()
+        {
+            ComputeMapWorldBounds();
+            ClampCameraPosition();
+        }
+
         void Update()
         {
             if (cam == null) return;
 
-            // prioritize touch if available
+            // Prioritize touch if available
             if (Input.touchSupported && Input.touchCount > 0)
             {
                 HandleTouch();
@@ -73,13 +79,30 @@ namespace Controller
                 HandleMouse();
             }
 
-            // clamp zoom
+            // Always clamp zoom and position
             cam.orthographicSize = Mathf.Clamp(cam.orthographicSize, minOrthographicSize, maxOrthographicSize);
+            ClampCameraPosition();
         }
 
-        // -----------------------
-        // Touch handling
-        // -----------------------
+        void ComputeMapWorldBounds()
+        {
+            if (useMapBounds && mapSprite != null)
+            {
+                var b = mapSprite.bounds;
+                mapWorldBounds = new Rect(b.min.x, b.min.y, b.size.x, b.size.y);
+            }
+            else
+            {
+                mapWorldBounds = manualBounds;
+            }
+        }
+
+        public void RecomputeMapBounds()
+        {
+            ComputeMapWorldBounds();
+            ClampCameraPosition();
+        }
+
         void HandleTouch()
         {
             int touches = Input.touchCount;
@@ -87,8 +110,6 @@ namespace Controller
             if (touches == 1)
             {
                 Touch t = Input.GetTouch(0);
-
-                // detect UI under finger (robust)
                 pointerDownOverUI = UIUtils.IsPointerOverUI();
 
                 if (t.phase == TouchPhase.Began)
@@ -108,7 +129,6 @@ namespace Controller
                     float moveDist = (t.position - panStartScreenPos).magnitude;
                     if (!isPanning && moveDist > dragDeadzone)
                     {
-                        // start panning
                         isPanning = true;
                         potentialInteractable = null;
                     }
@@ -131,8 +151,8 @@ namespace Controller
                     float totalMove = (t.position - pointerDownScreenPos).magnitude;
                     bool isTap = totalMove < tapMaxMovement;
 
-                    // double-tap detection (time + distance)
-                    if (Time.time - lastClickTime < doubleClickTime && Vector2.Distance(lastClickPos, t.position) <= doubleClickMaxDistance)
+                    if (Time.time - lastClickTime < doubleClickTime && 
+                        Vector2.Distance(lastClickPos, t.position) <= doubleClickMaxDistance)
                     {
                         DoDoubleClickZoom(t.position);
                         lastClickTime = 0f;
@@ -151,7 +171,6 @@ namespace Controller
                             OnMapClick?.Invoke(new Vector2(worldPoint.x, worldPoint.y));
                         }
 
-                        // record for double-tap detection
                         lastClickTime = Time.time;
                         lastClickPos = t.position;
                     }
@@ -162,12 +181,10 @@ namespace Controller
             }
             else if (touches >= 2)
             {
-                // pinch-to-zoom: ignore if fingers over UI
                 Touch t0 = Input.GetTouch(0);
                 Touch t1 = Input.GetTouch(1);
 
                 bool t0UI = UIUtils.IsPointerOverUI();
-                // if any finger is over UI, skip pinch
                 if (t0UI) return;
 
                 Vector2 p0 = t0.position;
@@ -182,28 +199,42 @@ namespace Controller
                 else
                 {
                     float delta = curDistance - lastPinchDistance;
-                    cam.orthographicSize -= delta * pinchZoomSpeed * (cam.orthographicSize / 5f);
+                    float newSize = cam.orthographicSize - delta * pinchZoomSpeed * (cam.orthographicSize / 5f);
+                    
+                    newSize = Mathf.Clamp(newSize, minOrthographicSize, maxOrthographicSize);
+                    
+                    Vector3 cameraPosBefore = cam.transform.position;
+                    cam.orthographicSize = newSize;
+                    
+                    ClampCameraPosition();
+                    
+                    if (cam.transform.position != cameraPosBefore)
+                    {
+                        AdjustZoomToFitBounds();
+                    }
+
                     lastPinchDistance = curDistance;
                 }
             }
         }
 
-        // -----------------------
-        // Mouse handling
-        // -----------------------
         void HandleMouse()
         {
-            // wheel zoom (ignore when pointer over UI)
             float scroll = Input.mouseScrollDelta.y;
-            if (Mathf.Abs(scroll) > 0.01f)
+            if (Mathf.Abs(scroll) > 0.01f && !UIUtils.IsPointerOverUI())
             {
-                if (!UIUtils.IsPointerOverUI())
+                Vector3 cameraPosBefore = cam.transform.position;
+                cam.orthographicSize -= scroll * mouseWheelZoomSpeed * (cam.orthographicSize / 5f);
+                cam.orthographicSize = Mathf.Clamp(cam.orthographicSize, minOrthographicSize, maxOrthographicSize);
+                
+                ClampCameraPosition();
+                
+                if (cam.transform.position != cameraPosBefore)
                 {
-                    cam.orthographicSize -= scroll * mouseWheelZoomSpeed * (cam.orthographicSize / 5f);
+                    AdjustZoomToFitBounds();
                 }
             }
 
-            // mouse button down
             if (Input.GetMouseButtonDown(0))
             {
                 pointerDownOverUI = UIUtils.IsPointerOverUI();
@@ -214,8 +245,8 @@ namespace Controller
 
                 potentialInteractable = RaycastForInteractable(Input.mousePosition);
 
-                // double-click detection handled on MouseUp/MouseDown pattern below (we use time+distance)
-                if (Time.time - lastClickTime < doubleClickTime && Vector2.Distance(lastClickPos, (Vector2)Input.mousePosition) <= doubleClickMaxDistance)
+                if (Time.time - lastClickTime < doubleClickTime && 
+                    Vector2.Distance(lastClickPos, (Vector2)Input.mousePosition) <= doubleClickMaxDistance)
                 {
                     DoDoubleClickZoom(Input.mousePosition);
                     lastClickTime = 0f;
@@ -229,7 +260,6 @@ namespace Controller
                 }
             }
 
-            // dragging
             if (Input.GetMouseButton(0))
             {
                 if (pointerDownOverUI) return;
@@ -247,7 +277,6 @@ namespace Controller
                 }
             }
 
-            // mouse button up
             if (Input.GetMouseButtonUp(0))
             {
                 if (pointerDownOverUI)
@@ -277,9 +306,6 @@ namespace Controller
             }
         }
 
-        // -----------------------
-        // Helpers
-        // -----------------------
         void PanCameraByDrag(Vector2 currentScreenPos)
         {
             float zDist = -cam.transform.position.z;
@@ -288,6 +314,8 @@ namespace Controller
             Vector3 worldDelta = worldStart - worldNow;
             worldDelta.z = 0f;
             cam.transform.position = panStartCamPos + worldDelta * panSpeed;
+
+            ClampCameraPosition();
         }
 
         IInteractable RaycastForInteractable(Vector2 screenPos)
@@ -301,14 +329,14 @@ namespace Controller
             RaycastHit2D hit = Physics2D.Raycast(origin2D, Vector2.zero, 0f, interactableLayerMask);
             if (hit.collider != null)
             {
-                var interact = hit.collider.GetComponentInParent<IInteractable>();
-                return interact;
+                return hit.collider.GetComponentInParent<IInteractable>();
             }
             return null;
         }
 
         void DoDoubleClickZoom(Vector2 screenPos)
         {
+            Vector3 cameraPosBefore = cam.transform.position;
             float target = Mathf.Clamp(cam.orthographicSize * doubleClickZoomFactor, minOrthographicSize, maxOrthographicSize);
 
             float zDist = -cam.transform.position.z;
@@ -318,6 +346,67 @@ namespace Controller
             Vector3 diff = worldBefore - worldAfter;
             diff.z = 0f;
             cam.transform.position += diff;
+
+            ClampCameraPosition();
+            
+            if (cam.transform.position != cameraPosBefore)
+            {
+                AdjustZoomToFitBounds();
+            }
+        }
+
+        void AdjustZoomToFitBounds()
+        {
+            if (!useMapBounds) return;
+
+            float requiredSizeForX = mapWorldBounds.width / (2f * cam.aspect);
+            float requiredSizeForY = mapWorldBounds.height / 2f;
+            float requiredSize = Mathf.Max(requiredSizeForX, requiredSizeForY);
+
+            if (cam.orthographicSize < requiredSize)
+            {
+                cam.orthographicSize = Mathf.Clamp(requiredSize, minOrthographicSize, maxOrthographicSize);
+                ClampCameraPosition();
+            }
+        }
+
+        public void ClampToMapBounds()
+        {
+            ClampCameraPosition();
+        }
+
+        void ClampCameraPosition()
+        {
+            if (!useMapBounds) return;
+
+            if (useMapBounds && mapSprite != null)
+            {
+                var b = mapSprite.bounds;
+                mapWorldBounds = new Rect(b.min.x, b.min.y, b.size.x, b.size.y);
+            }
+
+            float vertExtent = cam.orthographicSize;
+            float horzExtent = vertExtent * cam.aspect;
+
+            float minX = mapWorldBounds.xMin + horzExtent;
+            float maxX = mapWorldBounds.xMax - horzExtent;
+            float minY = mapWorldBounds.yMin + vertExtent;
+            float maxY = mapWorldBounds.yMax - vertExtent;
+
+            if (minX > maxX)
+            {
+                minX = mapWorldBounds.center.x;
+                maxX = mapWorldBounds.center.x;
+            }
+            if (minY > maxY)
+            {
+                minY = mapWorldBounds.center.y;
+                maxY = mapWorldBounds.center.y;
+            }
+
+            float x = Mathf.Clamp(cam.transform.position.x, minX, maxX);
+            float y = Mathf.Clamp(cam.transform.position.y, minY, maxY);
+            cam.transform.position = new Vector3(x, y, cam.transform.position.z);
         }
     }
 }

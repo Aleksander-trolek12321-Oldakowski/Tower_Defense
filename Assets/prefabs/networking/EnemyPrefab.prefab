@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5115739603248687112}
   - component: {fileID: 6351113713586726726}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: GameObject
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -101,7 +101,7 @@ GameObject:
   - component: {fileID: 1062762103380756570}
   - component: {fileID: -4998322519996861394}
   - component: {fileID: 4750078426444604510}
-  m_Layer: 0
+  m_Layer: 3
   m_Name: EnemyPrefab
   m_TagString: Unit
   m_Icon: {fileID: 0}
@@ -291,6 +291,8 @@ MonoBehaviour:
   _NetworkedPosition: {x: 0, y: 0}
   _SpriteIndex: 0
   _GhostVisible: 1
+  _HalfwayRewardGiven: 0
+  _BaseAttackRewardGiven: 0
   visualsRoot: {fileID: 7620828927797009652}
   spriteRenderer: {fileID: 1062762103380756570}
   animator: {fileID: 0}

@@ -53,8 +53,6 @@ public class PathBranchGate : MonoBehaviour
         if (!list.Contains(this)) list.Add(this);
 
         UpdateArrowVisualState();
-
-        gameObject.SetActive(true);
     }
 
     private void UnregisterGate()
@@ -103,6 +101,11 @@ public class PathBranchGate : MonoBehaviour
                 if (g != null) g.UpdateArrowVisualState();
             }
         }
+
+        if (Networking.GamePlayManager.Instance != null && Networking.GamePlayManager.Instance.Runner != null && Networking.GamePlayManager.Instance.Runner.IsServer)
+        {
+            Networking.GamePlayManager.Instance.RPC_NotifyPathBranch(path.name, branchIdx);
+        }
     }
 
     public static int GetForcedBranchForPath(PathManager path)
@@ -121,6 +124,11 @@ public class PathBranchGate : MonoBehaviour
         {
             foreach (var g in list)
                 g?.UpdateArrowVisualState();
+        }
+
+        if (Networking.GamePlayManager.Instance != null && Networking.GamePlayManager.Instance.Runner != null && Networking.GamePlayManager.Instance.Runner.IsServer)
+        {
+            Networking.GamePlayManager.Instance.RPC_NotifyPathBranch(path.name, -1);
         }
     }
 
@@ -141,6 +149,56 @@ public class PathBranchGate : MonoBehaviour
         }
 
         Debug.Log($"[PathBranchGate] Applied branch {branchIndex} to {appliedCount} enemies on path {path.name}");
+    }
+
+    public static void ClientSetForcedBranchForPath(string pathName, int branchIdx)
+    {
+        if (string.IsNullOrEmpty(pathName)) return;
+
+        if (!PathManager.Instances.TryGetValue(pathName, out var path))
+        {
+            Debug.LogWarning($"[PathBranchGate] Client cannot find PathManager '{pathName}' (did you use different names?).");
+            return;
+        }
+
+        if (gatesByPath.TryGetValue(path, out var list))
+        {
+            foreach (var g in list)
+            {
+                if (g == null) continue;
+
+                bool isActive;
+                if (branchIdx >= 0)
+                    isActive = (branchIdx == g.branchIndex);
+                else
+                    isActive = (g.branchIndex == 0);
+
+                if (g.arrowSpriteRenderer == null && g.arrowVisual != null)
+                    g.arrowSpriteRenderer = g.arrowVisual.GetComponent<SpriteRenderer>();
+
+                if (g.arrowSpriteRenderer != null)
+                {
+                    if (g.activeSprite != null && g.inactiveSprite != null)
+                        g.arrowSpriteRenderer.sprite = isActive ? g.activeSprite : g.inactiveSprite;
+
+                    g.arrowSpriteRenderer.enabled = true;
+                    try
+                    {
+                        g.arrowSpriteRenderer.sortingLayerName = "Default";
+                        g.arrowSpriteRenderer.sortingOrder = 500;
+                    }
+                    catch { }
+                }
+
+                if (g.arrowVisual != null)
+                {
+                    g.arrowVisual.SetActive(true);
+                    var pos = g.arrowVisual.transform.position;
+                    pos.z = 0f;
+                    g.arrowVisual.transform.position = pos;
+                }
+            }
+        }
     }
 
     public void UpdateArrowVisualState()

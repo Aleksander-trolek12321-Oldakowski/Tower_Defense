@@ -173,7 +173,7 @@ MonoBehaviour:
   panSpeed: 1
   dragDeadzone: 5
   minOrthographicSize: 2
-  maxOrthographicSize: 12.5
+  maxOrthographicSize: 14.8
   pinchZoomSpeed: 0.02
   mouseWheelZoomSpeed: 2
   doubleClickZoomFactor: 0.5

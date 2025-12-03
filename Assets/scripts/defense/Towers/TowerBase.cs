@@ -32,8 +32,6 @@ public class TowerBase : MonoBehaviour
                 float desiredLocalAngle = Mathf.DeltaAngle(parentAngle, worldAngle) + rotationOffset;
                 Quaternion desiredLocalRot = Quaternion.Euler(0f, 0f, desiredLocalAngle);
 
-                Debug.Log($"[TowerBase] target={currentTarget?.name} parentAngle={parentAngle} desiredLocal={desiredLocalAngle} currentLocal={turretPivot.localRotation.eulerAngles.z}");
-
                 turretPivot.localRotation = Quaternion.RotateTowards(
                     turretPivot.localRotation,
                     desiredLocalRot,

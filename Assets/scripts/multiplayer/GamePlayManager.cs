@@ -244,6 +244,12 @@ namespace Networking
             }
         }
 
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        public void RPC_NotifyPathBranch(string pathName, int branchIndex, RpcInfo info = default)
+        {
+            PathBranchGate.ClientSetForcedBranchForPath(pathName, branchIndex);
+        }
+
 
         public int GetUnitCost(int unitIndex)
         {

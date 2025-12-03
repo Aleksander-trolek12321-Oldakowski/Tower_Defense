@@ -337,7 +337,7 @@ public class GameRoundManager : NetworkBehaviour
     {
         if (roundText != null)
         {
-            roundText.text = $"Round: {CurrentRound}/{totalRounds}";
+            roundText.text = $"       {CurrentRound}               {totalRounds}";
         }
 
         if (timerText != null)

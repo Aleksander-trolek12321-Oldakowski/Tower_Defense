@@ -1,6 +1,7 @@
 using System.Collections;
 using Fusion;
 using UnityEngine;
+using Networking;
 
 [RequireComponent(typeof(Rigidbody2D))]
 public class EnemyAI : NetworkBehaviour
@@ -337,7 +338,17 @@ public class EnemyAI : NetworkBehaviour
         if (!Runner.IsServer) return;
         HP -= dmg;
         if (HP <= 0)
+        {
+            var players = FindObjectsOfType<PlayerNetwork>();
+            foreach (var player in players)
+            {
+                if (player.Team == 0)
+                {
+                    GameRoundManager.Instance?.RewardDefenderForKill();
+                }
+            }
             Runner.Despawn(Object);
+        }
     }
 
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]

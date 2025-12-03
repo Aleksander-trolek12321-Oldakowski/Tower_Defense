@@ -128,7 +128,7 @@ MonoBehaviour:
   rotationOffset: 90
   freezeRadius: 3
   freezeDuration: 2
-  fireRate: 3
+  fireRate: 2
 --- !u!114 &-2656695772796692274
 MonoBehaviour:
   m_ObjectHideFlags: 0

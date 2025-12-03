@@ -35,11 +35,24 @@ public class CannonTower : TowerBase
             var proj = no.GetComponent<ProjectileNetwork>();
             if (proj != null)
             {
-                Vector2 dir = ((Vector2)target.position - (Vector2)spawnPos).normalized;
-                proj.InitVelocity(dir * projectileSpeed);
                 proj.damage = damage;
                 proj.aoeRadius = aoeRadius;
+                proj.speed = projectileSpeed;
+
+                var enemy = target.GetComponent<EnemyAI>();
+                if (enemy != null)
+                {
+                    float towerRange = 6f;
+                    proj.SetTargetAndOrigin(enemy, transform.position, towerRange);
+                }
+                else
+                {
+                    Vector2 dir = ((Vector2)target.position - (Vector2)spawnPos).normalized;
+                    proj.NetworkedVelocity = dir * projectileSpeed;
+                    proj.NetworkedRotation = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+                }
             }
         }
+
     }
 }
